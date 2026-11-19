@@ -1,0 +1,10 @@
+{
+  // Site estático do Deixa Comigo publicado como Cloudflare Worker (somente arquivos, sem código de servidor)
+  "name": "deixa-comigo-site",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none"
+  }
+}
