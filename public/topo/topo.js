@@ -94,13 +94,13 @@ async function iniciar() {
     <div class="card pilha-p">
       <h2>Como funciona</h2>
       <p class="muted">${esc(comoFunciona(k))}</p>
-      <p class="pequeno"><strong>${k.aceitos} de ${k.pessoas}</strong> já toparam.</p>
+      ${categoriaDe(k) === 'venda' ? '' : `<p class="pequeno"><strong>${k.aceitos} de ${k.pessoas}</strong> já confirmaram.</p>`}
     </div>
     <div id="acao" class="card pilha-p" style="border: 2px solid var(--ink)">
       ${encerrado ? '<h2>Este combinado foi encerrado</h2><p class="muted">Não há novas cobranças.</p>'
         : topou ? `<h2>Você está dentro</h2><p class="muted">Desde ${new Date(k.aceito_em).toLocaleDateString('pt-BR')}. ${k.pagamento_token ? 'Sua cobrança já está disponível no botão "Pagar minha parte".' : 'Quando chegar a data, você recebe o link de pagamento.'}</p>`
-        : `<h2>Tá combinado?</h2><p class="muted">Ao tocar em "Topo", ${esc(org)} fica sabendo que você concorda com essas regras.</p>
-           <button type="button" class="btn lima bloco" id="topo">Topo!</button>
+        : `<h2>${categoriaDe(k) === 'venda' ? 'Confere a sua compra?' : 'Tá combinado?'}</h2><p class="muted">Ao confirmar, ${esc(org)} fica sabendo que você concorda com ${categoriaDe(k) === 'venda' ? 'o valor e as datas das parcelas' : 'essas regras'}.</p>
+           <button type="button" class="btn lima bloco" id="topo">${categoriaDe(k) === 'venda' ? 'Confirmar compra' : 'Topo!'}</button>
            <p class="muted pequeno">Não concorda com algo? Fale direto com ${esc(org)} antes.</p>`}
     </div>
   `);

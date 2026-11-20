@@ -302,7 +302,7 @@ async function telaPainel() {
   });
   combinados.filter((k) => k.status === 'ativo').forEach((k) => {
     (k.combinado_membros || []).filter((m) => m.ativo && !m.convite_enviado_em).forEach((m) => {
-      tarefas.push({ href: `#/k/${k.id}`, titulo: k.titulo, txt: `Mandar o combinado para ${esc(primeiroNome(m.nome))} topar`, tag: 'Convidar' });
+      tarefas.push({ href: `#/k/${k.id}`, titulo: k.titulo, txt: categoriaDe(k) === 'venda' ? `Mandar o carnê para ${esc(primeiroNome(m.nome))} confirmar a compra` : `Mandar o combinado para ${esc(primeiroNome(m.nome))} confirmar`, tag: 'Convidar' });
     });
   });
   cobrancas.forEach((c) => {
@@ -340,7 +340,7 @@ async function telaPainel() {
       <span class="icone ${COR_ICONE[categoriaDe(k)]}">${ICONE[categoriaDe(k)]}</span>
       <span class="grow"><span class="titulo-item">${esc(k.titulo)}${categoriaDe(k) === 'venda' && ms[0] ? ` · ${esc(primeiroNome(ms[0].nome))}` : ''}</span>
         <span class="muted pequeno" style="display:block">${esc(textoRegra(k))}</span>
-        <span class="muted pequeno" style="display:block">${k.vagas ? `${ms.length} de ${k.vagas} vagas` : `${toparam} de ${ms.length} toparam`}${k.entrada_aberta ? ' · lista aberta' : ''}${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
+        <span class="muted pequeno" style="display:block">${k.vagas ? `${ms.length} de ${k.vagas} vagas` : categoriaDe(k) === 'venda' ? (toparam ? 'compra confirmada' : 'aguardando a cliente confirmar') : `${toparam} de ${ms.length} confirmaram`}${k.entrada_aberta ? ' · lista aberta' : ''}${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
   };
   const nome = primeiroNome(estado.perfil.nome);
   render(casca(`
@@ -386,7 +386,7 @@ function telaNova() {
       <p class="muted">Troque o caderno pelo app: ele cobra na data e mostra quem pagou.</p>
     </div>
     ${opcao('/vender', 'venda', 'Venda parcelada (carnê)', 'Perfume, roupa, cosméticos: o cliente paga em parcelas e o app cobra cada mês.')}
-    ${opcao('/cartela/nova', 'cartela', 'Cartela de números ou nomes', 'A grade do papel no celular: cada um escolhe o seu e você vê quem pagou.')}
+    ${opcao('/cartela/nova', 'cartela', 'Cartela de números', 'A grade do papel no celular: cada um escolhe o seu número e você vê quem pagou.')}
     <div class="pilha-p" style="margin-top: 16px">
       <h2>Cobrar o que já passou</h2>
       <p class="muted">Para o que não foi combinado antes.</p>
@@ -734,7 +734,7 @@ async function telaCombinado(id) {
     const prox = proxima();
     const cartao = (m) => {
       const aberto = abertos.has(m.id);
-      const situacao = m.aceito_em ? `<span class="tag pago">Topou em ${new Date(m.aceito_em).toLocaleDateString('pt-BR')}</span>`
+      const situacao = m.aceito_em ? `<span class="tag pago">Confirmou em ${new Date(m.aceito_em).toLocaleDateString('pt-BR')}</span>`
         : m.convite_enviado_em ? '<span class="tag pendente">Convite enviado</span>' : '<span class="tag neutra">Convite não enviado</span>';
       return `<article class="pessoa" aria-label="${esc(m.nome)}">
         <div class="linha-flex entre"><div><h3>${esc(m.nome)}</h3><p class="muted pequeno">${brl(m.valor || k.valor_por_pessoa)} ${k.regra === 'unico' ? 'no total' : k.parcelas ? 'por parcela' : k.frequencia === 'semanal' ? 'por semana' : 'por mês'}</p></div>${situacao}</div>
@@ -760,7 +760,9 @@ async function telaCombinado(id) {
         <p class="muted">${esc(textoRegra(k))}${k.descricao ? ` · ${esc(k.descricao)}` : ''}</p>
       </div>
       <div class="resumo">
-        <div class="card escuro"><p class="muted pequeno">Toparam</p><p class="numero" style="color: var(--lima)">${toparam} de ${ms.length}</p></div>
+        <div class="card escuro">${categoriaDe(k) === 'venda'
+          ? `<p class="muted pequeno">Compra confirmada pela cliente</p><p class="numero" style="color: var(--lima)">${toparam ? 'Sim' : 'Aguardando'}</p>`
+          : `<p class="muted pequeno">Confirmaram o combinado</p><p class="numero" style="color: var(--lima)">${toparam} de ${ms.length}</p>`}</div>
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
       ${listaHTML(ms)}
@@ -1283,18 +1285,12 @@ function telaFormVenda() {
 function telaFormCartela() {
   const gratis = estado.perfil.plano === 'gratis';
   render(casca(`
-    <div class="pilha-p"><h1>Nova cartela</h1><p class="muted">A grade do papel, no celular. Cada pessoa escolhe pelo link e paga com Pix, e você também pode lançar o que vendeu no papel.</p></div>
+    <div class="pilha-p"><h1>Nova cartela de números</h1><p class="muted">A grade do papel, no celular. Cada pessoa escolhe pelo link e paga com Pix, e você também pode lançar o que vendeu no papel.</p></div>
     <form id="f" class="pilha" novalidate>
       <div class="card pilha">
         <div class="campo"><label for="titulo">Nome da cartela</label><input id="titulo" maxlength="60" placeholder="Ex.: Chá de fraldas da Ana"></div>
         <div class="campo"><label for="descricao">Para que é (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: ajudar com o enxoval"></div>
-        <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">A cartela tem</span>
-          <div class="tons" role="radiogroup" aria-label="Tipo da cartela">
-            <label class="check"><input type="radio" name="modo" value="numeros" checked> Números</label>
-            <label class="check"><input type="radio" name="modo" value="nomes"> Nomes</label>
-          </div></div>
         <div class="campo" id="bloco-qtd"><label for="qtd">Quantos números</label><input id="qtd" inputmode="numeric" value="50"><span class="ajuda">${gratis ? 'De 2 a 100 no plano grátis.' : 'De 2 a 200.'}</span></div>
-        <div class="campo" id="bloco-nomes" hidden><label for="nomes">Nomes, um por linha</label><textarea id="nomes" placeholder="Ana&#10;Bia&#10;Carla"></textarea><span class="ajuda" id="conta-nomes"></span></div>
       </div>
       <div class="card pilha">
         <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">Valor</span>
@@ -1314,17 +1310,14 @@ function telaFormCartela() {
       <button class="btn bloco lima" type="submit">Criar cartela</button>
     </form>`, { voltar: '/nova' }));
   const ler = () => {
-    const modo = app.querySelector('input[name=modo]:checked').value;
+    const modo = 'numeros';
     const vmodo = app.querySelector('input[name=vmodo]:checked').value;
-    const nomes = $('#nomes').value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => x.slice(0, 30));
-    const quantidade = modo === 'nomes' ? nomes.length : Math.round(parseValor($('#qtd').value));
+    const nomes = [];
+    const quantidade = Math.round(parseValor($('#qtd').value));
     return { modo, vmodo, nomes, quantidade, valor: round2(parseValor($('#valor').value)), maxp: Math.round(parseValor($('#maxp').value)) };
   };
   const atualizar = () => {
     const r = ler();
-    $('#bloco-qtd').hidden = r.modo !== 'numeros';
-    $('#bloco-nomes').hidden = r.modo !== 'nomes';
-    $('#conta-nomes').textContent = `${r.nomes.length} nome${r.nomes.length === 1 ? '' : 's'}`;
     $('#rot-valor').textContent = r.vmodo === 'numero' ? 'Multiplicador (R$ por unidade do número)' : 'Valor de cada um (R$)';
     if (!(r.quantidade >= 2) || !(r.valor > 0)) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha a quantidade e o valor.</span>'; return; }
     const cheio = r.vmodo === 'numero' ? r.valor * (r.quantidade * (r.quantidade + 1)) / 2 : r.valor * r.quantidade;
