@@ -6,7 +6,7 @@ import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensag
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
-import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo } from '../js/boloes.js';
+import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo, daLoteria, valorCurto } from '../js/boloes.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -1588,7 +1588,7 @@ function telaFormBolao() {
     if (p && p.concurso) {
       if (!$('#concurso').dataset.mexeu) $('#concurso').value = p.concurso;
       if (!$('#data').dataset.mexeu && p.data) $('#data').value = p.data;
-      $('#dica-concurso').textContent = `Próximo concurso da ${LOTERIAS[lot].nome}: ${p.concurso}${p.data ? `, em ${dataBR(p.data)}` : ''}${p.estimativa ? ` · prêmio estimado ${brl(p.estimativa)}` : ''}.`;
+      $('#dica-concurso').textContent = `Próximo concurso ${daLoteria(lot)}: ${p.concurso}${p.data ? `, em ${dataBR(p.data)}` : ''}${p.estimativa ? ` · prêmio estimado ${valorCurto(p.estimativa)}` : ''}.`;
     } else $('#dica-concurso').textContent = 'Você pode preencher o concurso depois, quando fizer as apostas.';
   };
   const atualizar = () => {

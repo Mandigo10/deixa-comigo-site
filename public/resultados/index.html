@@ -37,7 +37,7 @@
 <script src="/config.js"></script>
 <script type="module">
 import { esc, dataBR } from '/js/util.js';
-import { LOTERIAS, nomeLoteria, bolasHTML, buscarResultado, valorCurto } from '/js/boloes.js';
+import { LOTERIAS, nomeLoteria, daLoteria, bolasHTML, buscarResultado, valorCurto } from '/js/boloes.js';
 import { registrar } from '/js/eventos.js';
 const lista = document.getElementById('lista');
 const dados = await buscarResultado('todas', null);
@@ -54,7 +54,7 @@ if (!rs.length) {
       <p class="muted pequeno">Concurso ${r.concurso}${r.data ? ` · ${dataBR(r.data)}` : ''}</p>
       ${r.dezenas2 ? `<p class="muted pequeno">1º sorteio</p>${bolasHTML(r.dezenas)}<p class="muted pequeno">2º sorteio</p>${bolasHTML(r.dezenas2)}` : bolasHTML(r.dezenas)}
       ${p.concurso ? `<p>Próximo: concurso ${p.concurso}${p.data ? `, ${dataBR(p.data)}` : ''}${p.estimativa ? ` · prêmio estimado <strong>${esc(valorCurto(p.estimativa))}</strong>` : ''}</p>` : ''}
-      <a class="btn sec peq" style="align-self:flex-start" href="/app/#/bolao/novo">Fazer bolão da ${esc(nomeLoteria(r.loteria))}</a>
+      <a class="btn sec peq" style="align-self:flex-start" href="/app/#/bolao/novo">Fazer bolão ${esc(daLoteria(r.loteria))}</a>
     </section>`;
   }).join('');
 }

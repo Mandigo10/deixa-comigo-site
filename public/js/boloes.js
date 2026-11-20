@@ -22,6 +22,7 @@ export function conferenciaLiberada(plano) {
 export const AVISO_BOLAO = 'Bolão entre conhecidos para dividir apostas oficiais da CAIXA. O app não vende cotas, não cobra taxa e não recebe dinheiro: o Pix vai direto para quem organiza, que faz as apostas na lotérica e guarda os comprovantes. Quem está com o comprovante é quem recebe o prêmio na CAIXA, e a divisão é a combinada entre vocês.';
 
 export function nomeLoteria(lot) { return (LOTERIAS[lot] || {}).nome || 'Loteria'; }
+export function daLoteria(lot) { return `${lot === 'diadesorte' ? 'do' : 'da'} ${nomeLoteria(lot)}`; }
 export function dezena(n) { return String(n).padStart(2, '0'); }
 export function nomeFaixa(lot, acertos) {
   const f = (LOTERIAS[lot] || {}).faixas;
@@ -263,19 +264,22 @@ export function ligarSeletor(caixa, estado, redesenhar, avisar) {
     if (!b) return;
     const jogo = estado.jogos[estado.atual] || [];
     if (b.dataset.jogo != null) estado.atual = Number(b.dataset.jogo);
-    else if (b.dataset.surpresa != null) estado.jogos[estado.atual] = surpresinha(estado.lot);
     else if (b.dataset.limpar != null) estado.jogos[estado.atual] = [];
     else {
-      const n = Number(b.dataset.dz);
-      if (jogo.includes(n)) estado.jogos[estado.atual] = jogo.filter((x) => x !== n);
-      else if (jogo.length >= L.simples) { if (avisar) avisar(`Este jogo já tem ${L.simples} números. Toque em um para tirar.`); return; }
-      else estado.jogos[estado.atual] = [...jogo, n].sort((x, y) => x - y);
+      if (b.dataset.surpresa != null) estado.jogos[estado.atual] = surpresinha(estado.lot);
+      else {
+        const n = Number(b.dataset.dz);
+        if (jogo.includes(n)) estado.jogos[estado.atual] = jogo.filter((x) => x !== n);
+        else if (jogo.length >= L.simples) { if (avisar) avisar(`Este jogo já tem ${L.simples} números. Toque em um para tirar.`); return; }
+        else estado.jogos[estado.atual] = [...jogo, n].sort((x, y) => x - y);
+      }
       // completou: passa para o próximo jogo que falta
       if (estado.jogos[estado.atual].length === L.simples) {
         const prox = estado.jogos.findIndex((j, i) => i > estado.atual && j.length < L.simples);
         if (prox >= 0) setTimeout(() => { estado.atual = prox; redesenhar(); }, 350);
       }
     }
+    if (estado.aoMexer) estado.aoMexer();
     redesenhar();
   });
 }

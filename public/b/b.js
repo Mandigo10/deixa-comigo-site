@@ -37,7 +37,7 @@ async function entrada() {
   const maxAgora = Math.max(1, Math.min(b.max_por_pessoa, livres == null ? b.max_por_pessoa : livres));
   const ppc = b.palpites_por_cota || 0;
   const L = LOTERIAS[b.loteria];
-  const escolha = { lot: b.loteria, jogos: ppc ? [[]] : [], atual: 0 };
+  const escolha = { lot: b.loteria, jogos: ppc ? [[]] : [], atual: 0, aoMexer: () => { const m = document.getElementById('msg'); if (m) m.textContent = ''; } };
   const ajustarJogos = (cotas) => {
     const total = cotas * ppc;
     while (escolha.jogos.length < total) escolha.jogos.push([]);
@@ -78,6 +78,7 @@ async function entrada() {
         <p class="muted pequeno">Só ${esc(primeiroNome(b.organizador))} vê seu nome e seu WhatsApp. Os outros veem só quantas pessoas entraram.</p>
       </form>` : `<div class="aviso">${livres === 0 ? 'As cotas acabaram.' : 'O bolão está fechado para novas entradas.'}</div>`}
     `);
+    if (sorteioFuturo) mostrarProximo(document.getElementById('proximo'), b);
     const f = document.getElementById('f');
     if (!f) return;
     const caixa = document.getElementById('seletor');
@@ -125,7 +126,6 @@ async function entrada() {
     });
   };
   desenhar();
-  if (b.aberto !== undefined && sorteioFuturo) mostrarProximo(document.getElementById('proximo'), b);
 }
 
 // ---------- minha cota ----------
