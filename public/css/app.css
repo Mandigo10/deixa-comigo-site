@@ -166,3 +166,6 @@ a.item:hover { border-color: var(--ink); color: var(--ink); }
 .fotos .foto { display: flex; flex-direction: column; align-items: center; }
 .grade-n.mini { grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 5px; }
 .grade-n.mini .num { min-height: 42px; font-size: 0.9rem; border-radius: 999px; }
+
+dialog.janela { border: 0; border-radius: 20px; padding: 20px; width: min(420px, calc(100% - 32px)); box-shadow: 0 20px 60px rgba(22,20,31,.25); }
+dialog.janela::backdrop { background: rgba(22,20,31,.45); }

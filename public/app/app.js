@@ -7,10 +7,11 @@ import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
 import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo, daLoteria, valorCurto } from '../js/boloes.js';
+import { datalistHTML, ligarAutocompletar, editarPessoa, lerArquivoContatos, temAgendaDoCelular, contatosDoCelular } from '../js/contatos.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
-const estado = { sessao: null, perfil: null, perfilCarregado: false };
+const estado = { sessao: null, perfil: null, perfilCarregado: false, contatos: [], contatosCarregados: false };
 const DIAS_ENTRE_LEMBRETES = 3;
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -52,7 +53,7 @@ function casca(conteudo, { nav = true, ativo = '', voltar = '' } = {}) {
       <a href="#/calc" ${ativo === 'calc' ? 'aria-current="page"' : ''}>${ICONE.calc}Calcular</a>
       <a href="#/conta" ${ativo === 'conta' ? 'aria-current="page"' : ''}>${ICONE.conta}Conta</a>
     </div></nav>` : '';
-  return `<div class="casca"><header class="topo">${topo}</header><main class="pilha">${conteudo}</main></div>${barra}`;
+  return `<div class="casca"><header class="topo">${topo}</header><main class="pilha">${conteudo}</main></div>${barra}${datalistHTML(estado.contatos)}`;
 }
 function render(html) { app.innerHTML = html; }
 function $(sel) { return app.querySelector(sel); }
@@ -83,6 +84,11 @@ function traduzErro(e) {
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão. Confira sua internet e tente de novo.';
   return 'Não deu certo agora. Tente de novo em instantes.';
 }
+async function carregarContatos() {
+  const { data } = await sb.from('contatos').select('id, nome, telefone').order('nome');
+  estado.contatos = data || [];
+  estado.contatosCarregados = true;
+}
 async function carregarPerfil() {
   const { data } = await sb.from('perfis').select('*').eq('id', estado.sessao.user.id).maybeSingle();
   estado.perfil = data || null;
@@ -108,6 +114,7 @@ const ROTAS = [
   [/^\/bolao\/([0-9a-f-]{36})$/, (id) => telaBolao(id)],
   [/^\/c\/([0-9a-f-]{36})$/, (id) => telaCobranca(id)],
   [/^\/conta$/, () => telaConta()],
+  [/^\/contatos$/, () => telaContatos()],
   [/^\/resumo$/, () => telaResumo()],
   [/^\/calc$/, () => telaCalculadoras()],
   [/^\/calc\/([a-z]+)$/, (id) => telaCalculadora(id)],
@@ -129,6 +136,7 @@ async function rotear() {
     } else {
       if (publica) { location.hash = '/'; return; }
       if (!estado.perfilCarregado) await carregarPerfil();
+      if (!estado.contatosCarregados) await carregarContatos();
       if ((!estado.perfil || !estado.perfil.chave_pix) && !['/perfil', '/nova-senha', '/ajuda'].includes(caminho)) { location.hash = '/perfil'; return; }
     }
     for (const [re, fn] of ROTAS) {
@@ -778,7 +786,8 @@ async function telaCombinado(id) {
             <button type="button" class="btn sec peq" data-acao="copiarmsg" data-id="${m.id}">Copiar mensagem</button>
             <button type="button" class="btn texto peq" data-acao="fechar" data-id="${m.id}">Fechar</button>
           </div></div>` : ''}
-        ${k.status !== 'encerrado' ? `<button type="button" class="btn texto peq" data-acao="remover" data-id="${m.id}" style="align-self: flex-start">Tirar do combinado</button>` : ''}
+        <div class="acoes"><button type="button" class="btn texto peq" data-editar="membro" data-id="${m.id}" data-nome="${esc(m.nome)}" data-tel="${esc(m.telefone || '')}">Editar nome ou WhatsApp</button>
+        ${k.status !== 'encerrado' ? `<button type="button" class="btn texto peq" data-acao="remover" data-id="${m.id}">Tirar do combinado</button>` : ''}</div>
       </article>`;
     };
     render(casca(`
@@ -800,7 +809,7 @@ async function telaCombinado(id) {
         ${k.status !== 'encerrado' ? `<form id="add" class="card pilha-p" novalidate>
           <span style="font-weight: 600">Adicionar pessoa</span>
           <div class="grade-2">
-            <div class="campo"><label class="sr" for="novo-nome">Nome</label><input id="novo-nome" maxlength="60" placeholder="Nome"></div>
+            <div class="campo"><label class="sr" for="novo-nome">Nome</label><input id="novo-nome" list="dl-contatos" autocomplete="off" data-contato-tel="#novo-tel" maxlength="60" placeholder="Nome"></div>
             <div class="campo"><label class="sr" for="novo-tel">WhatsApp</label><input id="novo-tel" type="tel" inputmode="tel" maxlength="20" placeholder="WhatsApp (opcional)"></div>
           </div>
           <button type="submit" class="btn sec peq" style="align-self: flex-start">Adicionar</button>
@@ -908,7 +917,7 @@ async function telaCombinado(id) {
 function linhasPessoasHTML(lista, rotulo) {
   return lista.map((p, i) => `
     <div class="linha-pessoa">
-      <div class="campo"><label class="sr" for="pn${i}">Nome ${i + 1}</label><input id="pn${i}" data-lista="pessoas" data-i="${i}" data-k="nome" placeholder="${rotulo} ${i + 1}" maxlength="60" value="${esc(p.nome)}"></div>
+      <div class="campo"><label class="sr" for="pn${i}">Nome ${i + 1}</label><input id="pn${i}" list="dl-contatos" autocomplete="off" data-lista="pessoas" data-i="${i}" data-k="nome" placeholder="${rotulo} ${i + 1}" maxlength="60" value="${esc(p.nome)}"></div>
       <div class="campo"><label class="sr" for="pt${i}">WhatsApp ${i + 1}</label><input id="pt${i}" data-lista="pessoas" data-i="${i}" data-k="telefone" type="tel" inputmode="tel" placeholder="WhatsApp (opcional)" maxlength="20" value="${esc(formatarTelefone(p.telefone))}"></div>
       <button type="button" class="remover" data-remover="pessoas" data-i="${i}" aria-label="Remover ${esc(p.nome || rotulo + ' ' + (i + 1))}" ${lista.length === 1 ? 'disabled' : ''}>×</button>
     </div>`).join('');
@@ -961,7 +970,7 @@ function telaFormulario(tipo) {
   }
   const blocoPessoas = tipo === 'emprestimo' ? `
       <div class="grade-2">
-        <div class="campo"><label for="pnome">Para quem?</label><input id="pnome" maxlength="60" placeholder="Nome"></div>
+        <div class="campo"><label for="pnome">Para quem?</label><input id="pnome" list="dl-contatos" autocomplete="off" data-contato-tel="#ptel" maxlength="60" placeholder="Nome"></div>
         <div class="campo"><label for="ptel">WhatsApp (opcional)</label><input id="ptel" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 98765-4321"></div>
       </div>` : `
       <fieldset class="pilha-p" style="border: 0; padding: 0; margin: 0"><legend style="font-weight: 600; margin-bottom: 6px">${tipo === 'carona' ? 'Passageiros' : 'Quem vai pagar'}</legend>
@@ -1150,6 +1159,7 @@ async function telaCobranca(id) {
         </div>
         ${p.telefone ? '' : '<p class="muted pequeno">Sem WhatsApp cadastrado: o WhatsApp vai abrir para você escolher o contato.</p>'}
       </div>` : ''}
+      <button type="button" class="btn texto peq" data-editar="participantes" data-id="${p.id}" data-nome="${esc(p.nome)}" data-tel="${esc(p.telefone || '')}" style="align-self: flex-start">Editar nome ou WhatsApp${p.telefone ? '' : ' (sem WhatsApp)'}</button>
     </article>`;
   };
   const desenhar = () => {
@@ -1249,7 +1259,7 @@ function telaFormVenda() {
     <form id="f" class="pilha" novalidate>
       <div class="card pilha">
         <div class="grade-2">
-          <div class="campo"><label for="cliente">Cliente</label><input id="cliente" maxlength="60" placeholder="Nome"></div>
+          <div class="campo"><label for="cliente">Cliente</label><input id="cliente" list="dl-contatos" autocomplete="off" data-contato-tel="#tel" maxlength="60" placeholder="Nome"></div>
           <div class="campo"><label for="tel">WhatsApp</label><input id="tel" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 98765-4321"></div>
         </div>
         <div class="campo"><label for="produto">O que foi vendido</label><input id="produto" maxlength="50" placeholder="Ex.: Perfume Malbec 100 ml"></div>
@@ -1415,7 +1425,7 @@ async function telaCartela(id) {
         <div class="linha-flex entre"><h3>${c.modo === 'nomes' ? '' : 'Número '}${r} · livre</h3><button type="button" class="btn texto peq" data-acao="fecharsel">Fechar</button></div>
         <p class="muted pequeno">Vendeu no papel? Lance aqui. Valor: ${brl(valorDe(c, sel))}.</p>
         <div class="grade-2">
-          <div class="campo"><label class="sr" for="l-nome">Nome</label><input id="l-nome" maxlength="60" placeholder="Nome"></div>
+          <div class="campo"><label class="sr" for="l-nome">Nome</label><input id="l-nome" list="dl-contatos" autocomplete="off" data-contato-tel="#l-tel" maxlength="60" placeholder="Nome"></div>
           <div class="campo"><label class="sr" for="l-tel">WhatsApp</label><input id="l-tel" type="tel" inputmode="tel" maxlength="20" placeholder="WhatsApp (opcional)"></div>
         </div>
         <label class="check"><input type="checkbox" id="l-pago"> Já pagou</label>
@@ -1467,7 +1477,7 @@ async function telaCartela(id) {
       ${gs.length ? `<section class="pilha-p" aria-label="Por pessoa"><h2>Por pessoa</h2><ul class="lista">${gs.map((g) => {
         const total = g.itens.reduce((s, i) => s + Number(i.valor), 0);
         const falta = g.itens.filter((i) => i.status !== 'pago').reduce((s, i) => s + Number(i.valor), 0);
-        return `<li class="item"><span class="grow"><span class="titulo-item">${esc(g.nome)}</span>
+        return `<li class="item"><span class="grow"><span class="titulo-item">${esc(g.nome)}</span> <button type="button" class="btn texto peq" data-editar="cartela" data-id="${c.id}:${g.token}" data-nome="${esc(g.nome)}" data-tel="${esc(g.telefone || '')}" style="min-height:32px; padding:0 4px">Editar</button>
           <span class="muted pequeno" style="display:block">${g.itens.map((i) => esc(rotulo(c, i.numero))).join(', ')} · ${brl(total)}</span></span>
           ${falta ? `<span class="acoes" style="justify-content:flex-end"><button type="button" class="btn sec peq" data-acao="cobrar" data-token="${g.token}">Cobrar</button><button type="button" class="btn peq" data-acao="pagotudo" data-token="${g.token}">Pagou</button></span>` : '<span class="tag pago">Pago</span>'}</li>`;
       }).join('')}</ul></section>` : ''}
@@ -1755,7 +1765,7 @@ async function telaBolao(id) {
             ? `<button type="button" class="btn lima peq" data-acao="pago" data-id="${c.id}">Confirmar</button>`
             : `<button type="button" class="btn sec peq" data-acao="cobrar" data-id="${c.id}">Cobrar</button><button type="button" class="btn peq" data-acao="pago" data-id="${c.id}">Pagou</button>`}
           <button type="button" class="btn texto peq" data-acao="sel" data-id="${c.id}" aria-label="Mais opções para ${esc(c.nome)}" aria-expanded="${sel === c.id}">⋯</button></span></li>
-      ${sel === c.id ? `<li class="acoes" style="justify-content:flex-end">${c.status !== 'reservado' ? `<button type="button" class="btn sec peq" data-acao="naopago" data-id="${c.id}">Voltar para não pago</button>` : ''}<button type="button" class="btn perigo peq" data-acao="remover" data-id="${c.id}">Tirar do bolão</button></li>` : ''}`;
+      ${sel === c.id ? `<li class="acoes" style="justify-content:flex-end">${c.status !== 'reservado' ? `<button type="button" class="btn sec peq" data-acao="naopago" data-id="${c.id}">Voltar para não pago</button>` : ''}<button type="button" class="btn sec peq" data-editar="bolao" data-id="${c.id}" data-nome="${esc(c.nome)}" data-tel="${esc(c.telefone || '')}">Editar nome ou WhatsApp</button><button type="button" class="btn perigo peq" data-acao="remover" data-id="${c.id}">Tirar do bolão</button></li>` : ''}`;
 
     render(casca(`
       <div class="pilha-p">
@@ -1778,7 +1788,7 @@ async function telaBolao(id) {
         <details class="card"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Adicionar alguém por fora</summary>
           <form id="f-add" class="pilha-p" novalidate style="margin-top: 8px">
             <div class="grade-2">
-              <div class="campo"><label for="a-nome">Nome</label><input id="a-nome" maxlength="60"></div>
+              <div class="campo"><label for="a-nome">Nome</label><input id="a-nome" list="dl-contatos" autocomplete="off" data-contato-tel="#a-tel" maxlength="60"></div>
               <div class="campo"><label for="a-tel">WhatsApp (opcional)</label><input id="a-tel" type="tel" inputmode="tel" maxlength="20"></div>
             </div>
             <div class="grade-2">
@@ -1986,6 +1996,117 @@ async function telaBolao(id) {
   app.addEventListener('click', ouvinteTela);
   desenhar();
 }
+
+// ---------- contatos ----------
+async function guardarContatos(lista) {
+  const novos = [];
+  const vistos = new Set(estado.contatos.map((c) => c.telefone));
+  lista.forEach((c) => { if (c.telefone && !vistos.has(c.telefone)) { vistos.add(c.telefone); novos.push({ nome: c.nome.slice(0, 80), telefone: c.telefone }); } });
+  for (let i = 0; i < novos.length; i += 200) {
+    const { error } = await sb.from('contatos').upsert(novos.slice(i, i + 200), { onConflict: 'user_id,telefone', ignoreDuplicates: true });
+    if (error) throw error;
+  }
+  return novos.length;
+}
+
+async function telaContatos() {
+  render(casca('<p class="carregando">Carregando…</p>', { voltar: '/conta' }));
+  await carregarContatos();
+  let busca = '';
+  const lista = () => {
+    const b = busca.trim().toLowerCase(); const d = soDigitos(busca);
+    const fs = estado.contatos.filter((c) => !b || c.nome.toLowerCase().includes(b) || (d && c.telefone.includes(d)));
+    return fs.length ? `<ul class="lista">${fs.map((c) => `<li class="item"><span class="grow"><span class="titulo-item">${esc(c.nome)}</span><span class="muted pequeno" style="display:block">${esc(formatarTelefone(c.telefone))}</span></span>
+      <span class="acoes" style="justify-content:flex-end"><button type="button" class="btn sec peq" data-acao="ct-editar" data-id="${c.id}">Editar</button><button type="button" class="btn texto peq" data-acao="ct-apagar" data-id="${c.id}" aria-label="Apagar ${esc(c.nome)}">Apagar</button></span></li>`).join('')}</ul>`
+      : `<div class="card vazio"><p class="muted">${estado.contatos.length ? 'Nenhum contato com esse nome.' : 'Nenhum contato ainda. Quem você cadastrar nas cobranças entra aqui sozinho, ou importe da sua agenda.'}</p></div>`;
+  };
+  const desenhar = () => {
+    render(casca(`
+      <div class="pilha-p"><h1>Meus contatos</h1><p class="muted">Ao digitar um nome nos formulários, o app sugere o contato e já preenche o WhatsApp. Quem você cadastra numa cobrança entra aqui sozinho.</p></div>
+      <div class="acoes">
+        <button type="button" class="btn peq" data-acao="ct-novo">Novo contato</button>
+        ${temAgendaDoCelular() ? '<button type="button" class="btn sec peq" data-acao="ct-celular">Importar da agenda do celular</button>' : ''}
+        <label class="btn sec peq" for="ct-arquivo" role="button" tabindex="0">Importar do Google Contatos</label>
+        <input type="file" id="ct-arquivo" accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard" hidden>
+      </div>
+      <details class="card"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Como trazer os contatos do Google</summary>
+        <ol class="muted" style="margin: 8px 0 0; padding-left: 20px">
+          <li>No computador ou no navegador do celular, abra <strong>contacts.google.com</strong>.</li>
+          <li>Toque em <strong>Exportar</strong>, escolha <strong>Google CSV</strong> (ou vCard) e confirme.</li>
+          <li>Volte aqui, toque em <strong>Importar do Google Contatos</strong> e escolha o arquivo baixado.</li>
+        </ol>
+        <p class="muted pequeno">Só entram contatos com celular com DDD. Os contatos ficam só na sua conta.</p>
+        ${temAgendaDoCelular() ? '' : '<p class="muted pequeno">No Android (Chrome), aparece também o botão para escolher direto da agenda do celular.</p>'}
+      </details>
+      <div class="campo"><label for="ct-busca">Buscar</label><input id="ct-busca" type="search" placeholder="Nome ou número" value="${esc(busca)}" autocomplete="off"></div>
+      <p class="muted pequeno">${estado.contatos.length} ${estado.contatos.length === 1 ? 'contato' : 'contatos'}</p>
+      <div id="ct-lista">${lista()}</div>`, { voltar: '/conta' }));
+    $('#ct-busca').addEventListener('input', (e) => { busca = e.target.value; $('#ct-lista').innerHTML = lista(); });
+    $('#ct-arquivo').addEventListener('change', async (e) => {
+      const arq = e.target.files && e.target.files[0];
+      if (!arq) return;
+      try {
+        const lidos = lerArquivoContatos(await arq.text());
+        if (!lidos.length) { toast('Não achei contatos com celular nesse arquivo.', 'erro'); return; }
+        const n = await guardarContatos(lidos);
+        registrar('contatos_importados', { origem: 'arquivo', qtd: n });
+        toast(n ? `${n} ${n === 1 ? 'contato importado' : 'contatos importados'}.` : 'Esses contatos já estavam aqui.');
+        await carregarContatos(); desenhar();
+      } catch (err) { toast(traduzErro(err), 'erro'); }
+    });
+    $$('label[for="ct-arquivo"]').forEach((l) => l.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); l.click(); } }));
+  };
+  ouvinteTela = async (e) => {
+    const b = e.target.closest('[data-acao]');
+    if (!b) return;
+    const c = estado.contatos.find((x) => x.id === b.dataset.id);
+    if (b.dataset.acao === 'ct-novo' || b.dataset.acao === 'ct-editar') {
+      const r = await editarPessoa({ titulo: c ? 'Editar contato' : 'Novo contato', nome: c ? c.nome : '', telefone: c ? c.telefone : '', exigirTelefone: true });
+      if (!r) return;
+      const { error } = c ? await sb.from('contatos').update(r).eq('id', c.id) : await sb.from('contatos').insert(r);
+      if (error) { toast(/duplicate|unique/i.test(error.message) ? 'Já existe um contato com esse WhatsApp.' : traduzErro(error), 'erro'); return; }
+      toast(c ? 'Contato atualizado.' : 'Contato salvo.'); await carregarContatos(); desenhar();
+    } else if (b.dataset.acao === 'ct-apagar') {
+      if (!window.confirm(`Apagar ${c.nome} dos seus contatos? As cobranças com essa pessoa continuam.`)) return;
+      const { error } = await sb.from('contatos').delete().eq('id', c.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      await carregarContatos(); desenhar();
+    } else if (b.dataset.acao === 'ct-celular') {
+      try {
+        const lidos = await contatosDoCelular();
+        if (!lidos.length) return;
+        const n = await guardarContatos(lidos);
+        registrar('contatos_importados', { origem: 'celular', qtd: n });
+        toast(n ? `${n} ${n === 1 ? 'contato importado' : 'contatos importados'}.` : 'Esses contatos já estavam aqui.');
+        await carregarContatos(); desenhar();
+      } catch (err) { toast('Não consegui abrir a agenda do celular.', 'erro'); }
+    }
+  };
+  app.addEventListener('click', ouvinteTela);
+  desenhar();
+}
+
+// Editar nome/WhatsApp de quem já está numa cobrança, combinado, cartela ou bolão.
+app.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-editar]');
+  if (!b) return;
+  const r = await editarPessoa({ titulo: 'Editar nome e WhatsApp', nome: b.dataset.nome, telefone: b.dataset.tel });
+  if (!r) return;
+  const tipo = b.dataset.editar; const id = b.dataset.id;
+  let res;
+  if (tipo === 'participantes') res = await sb.from('participantes').update(r).eq('id', id);
+  else if (tipo === 'membro') {
+    res = await sb.from('combinado_membros').update(r).eq('id', id);
+    if (!res.error) await sb.from('participantes').update(r).eq('membro_id', id).neq('status', 'pago');
+  } else if (tipo === 'bolao') res = await sb.from('bolao_cotas').update(r).eq('id', id);
+  else if (tipo === 'cartela') { const [cid, tk] = id.split(':'); res = await sb.from('cartela_itens').update(r).eq('cartela_id', cid).eq('comprador_token', tk); }
+  if (!res || res.error) { toast(res && /duplicate|unique/i.test(res.error.message) ? 'Esse WhatsApp já está nesta lista.' : traduzErro(res && res.error), 'erro'); return; }
+  if (r.telefone) await sb.from('contatos').upsert({ nome: r.nome, telefone: r.telefone }, { onConflict: 'user_id,telefone', ignoreDuplicates: true });
+  registrar('pessoa_editada', { tipo });
+  await carregarContatos();
+  toast('Atualizado.');
+  rotear();
+});
 
 // ---------- calculadoras ----------
 function telaCalculadoras() {
@@ -2224,6 +2345,7 @@ function telaConta() {
       <p class="muted">${p.plano === 'gratis' ? 'Suas mensagens saem com "enviado por dx cmg". O Plus, sem marca e com lembretes ilimitados, chega em breve.' : 'Obrigado por apoiar o Deixa Comigo!'}</p>
     </div>
     <div class="card pilha-p">
+      <a class="btn sec" href="#/contatos">Meus contatos</a>
       <a class="btn sec" href="#/ajuda">Reportar problema ou dar ideia</a>
       <p class="pequeno" style="text-align: center"><a href="/termos/">Termos de uso</a> · <a href="/privacidade/">Política de privacidade</a></p>
     </div>
@@ -2249,6 +2371,7 @@ function telaConta() {
 
 // ---------- início ----------
 ativarMascaras(document);
+ligarAutocompletar(document, () => estado.contatos);
 (async function iniciar() {
   const { data } = await sb.auth.getSession();
   estado.sessao = data.session;
