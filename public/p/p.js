@@ -1,7 +1,7 @@
 // Página pública de pagamento: quem recebe o link vê o extrato, paga com Pix e avisa que pagou.
 import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
-import { esc, brl, dataBR, round2, copiar, toast, primeiroNome, NOMES_TIPO } from '../js/util.js';
+import { esc, brl, dataBR, round2, copiar, toast, primeiroNome, NOMES_TIPO, formatarChave } from '../js/util.js';
 import { gerarPix } from '../js/pix.js';
 
 const app = document.getElementById('app');
@@ -105,7 +105,7 @@ async function iniciar() {
       <button type="button" class="btn bloco" id="copiar">Copiar código Pix</button>
       <img id="qr" class="qr" alt="QR code do Pix de ${esc(brl(devido))} para ${esc(c.credor)}" hidden>
       <details><summary class="pequeno" style="cursor:pointer; min-height: 44px; display:flex; align-items:center">Ver código e chave Pix</summary>
-        <div class="pilha-p"><p class="codigo" id="codigo">${esc(pix)}</p><p class="pequeno muted">Chave Pix: ${esc(c.chave_pix)}</p></div></details>
+        <div class="pilha-p"><p class="codigo" id="codigo">${esc(pix)}</p><p class="pequeno muted">Chave Pix: ${esc(formatarChave(c.tipo_chave, c.chave_pix))}</p></div></details>
     </section>` : '<div class="aviso">Quem te cobrou ainda não cadastrou a chave Pix. Combine o pagamento direto com essa pessoa.</div>'}
     ${avisou ? '' : `<div class="card pilha-p">
       <h2>Já pagou?</h2>

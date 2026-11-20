@@ -1,7 +1,7 @@
 // Lista aberta: qualquer pessoa com o link vê as vagas e coloca o nome.
 import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
-import { esc, brl, primeiroNome, soDigitos, toast } from '../js/util.js';
+import { esc, brl, primeiroNome, soDigitos, toast, ativarMascaras } from '../js/util.js';
 import { MODELOS, textoRegra, valorDividido, ocupacaoHTML } from '../js/combinados.js';
 
 const app = document.getElementById('app');
@@ -132,4 +132,5 @@ async function iniciar() {
   });
 }
 
+ativarMascaras(document);
 iniciar();

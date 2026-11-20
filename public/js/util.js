@@ -88,3 +88,57 @@ export const NOMES_TIPO = {
   carona: 'Carona', emprestimo: 'Empréstimo', racha: 'Racha',
   vaquinha: 'Vaquinha', viagem: 'Viagem', mensalidade: 'Mensalidade', venda: 'Venda parcelada', cartela: 'Cartela'
 };
+
+// ---------- máscaras ----------
+export function formatarTelefone(v) {
+  let d = soDigitos(v);
+  if (d.startsWith('55') && d.length > 11) d = d.slice(2);
+  d = d.slice(0, 11);
+  if (!d) return '';
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+export function formatarCPF(v) {
+  const d = soDigitos(v).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+export function formatarCNPJ(v) {
+  const d = soDigitos(v).slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+export function formatarChave(tipo, chave) {
+  if (tipo === 'telefone') return formatarTelefone(chave);
+  if (tipo === 'cpf') return formatarCPF(chave);
+  if (tipo === 'cnpj') return formatarCNPJ(chave);
+  return chave || '';
+}
+const MASCARAS = { tel: formatarTelefone, cpf: formatarCPF, cnpj: formatarCNPJ };
+// Aplica a máscara enquanto a pessoa digita: campos type="tel" e campos com data-mascara="cpf|cnpj|tel".
+// Ao apagar, não reformata (para não "prender" o cursor nos parênteses e traços); reformata ao sair do campo.
+export function ativarMascaras(raiz = document) {
+  const aplicar = (el) => {
+    const tipo = el.dataset.mascara || (el.type === 'tel' ? 'tel' : '');
+    const fmt = MASCARAS[tipo];
+    if (!fmt) return;
+    const novo = fmt(el.value);
+    if (novo !== el.value) el.value = novo;
+  };
+  raiz.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    if (e.inputType && e.inputType.startsWith('delete')) return;
+    aplicar(el);
+  });
+  raiz.addEventListener('focusout', (e) => {
+    if (e.target instanceof HTMLInputElement) aplicar(e.target);
+  });
+}

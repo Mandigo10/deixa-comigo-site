@@ -1,7 +1,7 @@
 // Deixa Comigo — app (versão 1)
 import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
-import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome } from '../js/util.js';
+import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome, ativarMascaras, formatarTelefone, formatarChave } from '../js/util.js';
 import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
@@ -225,13 +225,20 @@ function telaPerfil() {
       <div class="campo"><label for="nome">Seu nome</label><input id="nome" maxlength="80" value="${esc(p.nome || nomeMeta)}" required></div>
       <div class="campo"><label for="tipo">Tipo de chave Pix</label>
         <select id="tipo">${tipos.map(([v, n]) => `<option value="${v}" ${p.tipo_chave === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-      <div class="campo"><label for="chave">Chave Pix</label><input id="chave" maxlength="77" value="${esc(p.chave_pix || '')}" required autocomplete="off"><span class="ajuda" id="ajuda-chave"></span></div>
+      <div class="campo"><label for="chave">Chave Pix</label><input id="chave" maxlength="77" value="${esc(formatarChave(p.tipo_chave, p.chave_pix || ''))}" required autocomplete="off"><span class="ajuda" id="ajuda-chave"></span></div>
       <div class="campo"><label for="cidade">Sua cidade</label><input id="cidade" maxlength="40" value="${esc(p.cidade && p.cidade !== 'SAO PAULO' ? p.cidade : (p.cidade || ''))}" placeholder="Ex.: Curitiba" required><span class="ajuda">O Pix pede a cidade de quem recebe.</span></div>
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco" type="submit">${primeiraVez ? 'Salvar e começar' : 'Salvar'}</button>
     </form>`, { nav: !primeiraVez, ativo: 'conta', voltar: primeiraVez ? '' : '/conta' }));
   const ajudas = { telefone: 'Com DDD. Ex.: (11) 98765-4321', cpf: 'Só os números do CPF.', email: 'O e-mail cadastrado como chave Pix.', cnpj: 'Só os números do CNPJ.', aleatoria: 'Cole a chave aleatória completa.' };
-  const atualizarAjuda = () => { $('#ajuda-chave').textContent = ajudas[$('#tipo').value]; };
+  const mascaraChave = { telefone: 'tel', cpf: 'cpf', cnpj: 'cnpj' };
+  const atualizarAjuda = () => {
+    const t = $('#tipo').value;
+    $('#ajuda-chave').textContent = ajudas[t];
+    const ch = $('#chave');
+    if (mascaraChave[t]) { ch.dataset.mascara = mascaraChave[t]; ch.inputMode = 'numeric'; ch.value = formatarChave(t, ch.value); }
+    else { delete ch.dataset.mascara; ch.inputMode = t === 'email' ? 'email' : 'text'; }
+  };
   $('#tipo').addEventListener('change', atualizarAjuda);
   atualizarAjuda();
   $('#f').addEventListener('submit', async (e) => {
@@ -881,7 +888,7 @@ function linhasPessoasHTML(lista, rotulo) {
   return lista.map((p, i) => `
     <div class="linha-pessoa">
       <div class="campo"><label class="sr" for="pn${i}">Nome ${i + 1}</label><input id="pn${i}" data-lista="pessoas" data-i="${i}" data-k="nome" placeholder="${rotulo} ${i + 1}" maxlength="60" value="${esc(p.nome)}"></div>
-      <div class="campo"><label class="sr" for="pt${i}">WhatsApp ${i + 1}</label><input id="pt${i}" data-lista="pessoas" data-i="${i}" data-k="telefone" type="tel" inputmode="tel" placeholder="WhatsApp (opcional)" maxlength="20" value="${esc(p.telefone)}"></div>
+      <div class="campo"><label class="sr" for="pt${i}">WhatsApp ${i + 1}</label><input id="pt${i}" data-lista="pessoas" data-i="${i}" data-k="telefone" type="tel" inputmode="tel" placeholder="WhatsApp (opcional)" maxlength="20" value="${esc(formatarTelefone(p.telefone))}"></div>
       <button type="button" class="remover" data-remover="pessoas" data-i="${i}" aria-label="Remover ${esc(p.nome || rotulo + ' ' + (i + 1))}" ${lista.length === 1 ? 'disabled' : ''}>×</button>
     </div>`).join('');
 }
@@ -1397,7 +1404,7 @@ async function telaCartela(id) {
     const st = { reservado: 'Escolhido, não pago', avisou_pago: 'Avisou que pagou', pago: 'Pago' }[it.status];
     return `<div class="card pilha-p" style="border: 2px solid var(--ink)">
       <div class="linha-flex entre"><h3>${c.modo === 'nomes' ? '' : 'Número '}${r}</h3><button type="button" class="btn texto peq" data-acao="fecharsel">Fechar</button></div>
-      <p><strong>${esc(it.nome)}</strong>${it.telefone ? ` · ${esc(it.telefone)}` : ''}</p>
+      <p><strong>${esc(it.nome)}</strong>${it.telefone ? ` · ${esc(formatarTelefone(it.telefone))}` : ''}</p>
       <p class="muted pequeno">${brl(it.valor)} · <span class="tag ${it.status === 'reservado' ? 'pendente' : it.status}">${st}</span></p>
       <div class="acoes">
         ${it.status !== 'pago' ? `<button type="button" class="btn ${it.status === 'avisou_pago' ? 'lima' : ''} peq" data-acao="pago" data-n="${it.numero}">${it.status === 'avisou_pago' ? 'Confirmar que recebi' : 'Marcar como pago'}</button>` : `<button type="button" class="btn sec peq" data-acao="pendente" data-n="${it.numero}">Voltar para não pago</button>`}
@@ -1741,7 +1748,7 @@ function telaConta() {
     <h1>Conta</h1>
     <div class="card pilha-p">
       <p class="muted pequeno">Nome</p><p><strong>${esc(p.nome)}</strong></p>
-      <p class="muted pequeno">Chave Pix (${tipos[p.tipo_chave] || ''})</p><p><strong>${esc(p.chave_pix)}</strong></p>
+      <p class="muted pequeno">Chave Pix (${tipos[p.tipo_chave] || ''})</p><p><strong>${esc(formatarChave(p.tipo_chave, p.chave_pix))}</strong></p>
       <p class="muted pequeno">E-mail de acesso</p><p>${esc(estado.sessao.user.email)}</p>
       <a class="btn sec" href="#/perfil" style="margin-top: 8px">Editar meus dados</a>
     </div>
@@ -1774,6 +1781,7 @@ function telaConta() {
 }
 
 // ---------- início ----------
+ativarMascaras(document);
 (async function iniciar() {
   const { data } = await sb.auth.getSession();
   estado.sessao = data.session;

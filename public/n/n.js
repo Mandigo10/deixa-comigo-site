@@ -1,7 +1,7 @@
 // Cartela pública: escolher números/nomes (?t=) e ver os seus para pagar (?c=).
 import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
-import { esc, brl, dataBR, primeiroNome, soDigitos, toast, copiar } from '../js/util.js';
+import { esc, brl, dataBR, primeiroNome, soDigitos, toast, copiar, ativarMascaras, formatarTelefone } from '../js/util.js';
 import { gerarPix } from '../js/pix.js';
 import { rotulo, valorDe, textoValor, AVISO_LEGAL } from '../js/cartelas.js';
 
@@ -61,7 +61,7 @@ async function escolher() {
         <h2>${escolhidos.size ? `Você escolheu ${escolhidos.size}: ${brl(total)}` : `Toque ${c.modo === 'nomes' ? 'nos nomes' : 'nos números'} que você quer`}</h2>
         ${escolhidos.size ? `<p class="muted pequeno">${Array.from(escolhidos).sort((a, b) => a - b).map((n) => esc(rotulo(c, n))).join(', ')}</p>` : ''}
         <div class="campo"><label for="nome">Seu nome</label><input id="nome" maxlength="60" autocomplete="name" value="${esc(ler('dxcmg_nome') || '')}"></div>
-        <div class="campo"><label for="tel">Seu WhatsApp</label><input id="tel" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="(11) 98765-4321" value="${esc(ler('dxcmg_tel') || '')}"><span class="ajuda">Para ${esc(primeiroNome(c.organizador))} te mandar o Pix e confirmar o pagamento.</span></div>
+        <div class="campo"><label for="tel">Seu WhatsApp</label><input id="tel" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="(11) 98765-4321" value="${esc(formatarTelefone(ler('dxcmg_tel') || ''))}"><span class="ajuda">Para ${esc(primeiroNome(c.organizador))} te mandar o Pix e confirmar o pagamento.</span></div>
         <p id="msg" class="erro" role="alert">${esc(msgErro)}</p>
         <button type="submit" class="btn lima bloco" ${escolhidos.size ? '' : 'disabled'}>Reservar e pagar</button>
         <p class="muted pequeno">Só ${esc(primeiroNome(c.organizador))} vê seu nome e seu WhatsApp.${c.max_por_pessoa ? ` Até ${c.max_por_pessoa} por pessoa.` : ''}</p>
@@ -180,4 +180,5 @@ async function meus() {
   }
 }
 
+ativarMascaras(document);
 if (tComprador) meus(); else escolher();
