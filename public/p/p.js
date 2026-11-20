@@ -1,5 +1,6 @@
 // Página pública de pagamento: quem recebe o link vê o extrato, paga com Pix e avisa que pagou.
 import { sb } from '../js/sb.js';
+import { registrar } from '../js/eventos.js';
 import { esc, brl, dataBR, round2, copiar, toast, primeiroNome, NOMES_TIPO } from '../js/util.js';
 import { gerarPix } from '../js/pix.js';
 
@@ -12,7 +13,7 @@ function casca(conteudo) {
     <main class="pilha">${conteudo}</main>
     <footer class="pilha-p" style="margin-top: 32px; text-align: center">
       <p class="muted pequeno">Esta cobrança foi organizada pelo Deixa Comigo. O pagamento vai direto para a conta de quem cobrou: o app não recebe nem guarda dinheiro.</p>
-      <p class="pequeno"><a href="/?utm_source=link_cobranca&amp;utm_medium=rodape">Também tem alguém para cobrar? Deixa comigo.</a></p>
+      <p class="pequeno"><a href="/?utm_source=link_cobranca&amp;utm_medium=rodape">Também tem alguém para cobrar? Deixa comigo.</a> · <a href="/termos/">Termos</a> · <a href="/privacidade/">Privacidade</a> · <a href="/ajuda/">Ajuda</a></p>
     </footer>
   </div>`;
 }
@@ -125,6 +126,7 @@ async function iniciar() {
     btnPaguei.disabled = true;
     const { error: e } = await sb.rpc('avisar_pagamento', { p_token: token });
     if (e) { btnPaguei.disabled = false; toast('Não deu certo agora. Tente de novo.', 'erro'); return; }
+    registrar('paguei', { tipo: c.tipo });
     btnPaguei.closest('.card').innerHTML = `<h2>Obrigado!</h2><p class="muted">Avisamos ${esc(credor)}. Agora é só aguardar a confirmação.</p>`;
   });
 

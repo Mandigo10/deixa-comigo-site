@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ajuda · Deixa Comigo</title>
+<meta name="description" content="Fale com o Deixa Comigo.">
+<meta name="theme-color" content="#16141F">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="casca" style="padding-bottom: 48px">
+<header class="topo"><a class="marca" href="/" aria-label="Deixa Comigo"><span class="logo">dx<br>cmg</span><span class="marca-nome">Deixa Comigo</span></a><a class="btn peq" href="/app/">Abrir o app</a></header>
+<main class="pilha">
+<div class="pilha-p"><h1>Ajuda</h1><p class="muted">Algo não funcionou, ficou confuso ou você tem uma ideia? Conta pra gente.</p></div>
+<form id="f" class="card pilha" novalidate>
+  <div class="campo"><label for="msgtxt">O que aconteceu?</label><textarea id="msgtxt" maxlength="2000" placeholder="Ex.: o código Pix não funcionou no meu banco"></textarea></div>
+  <div class="campo"><label for="contato">Seu e-mail ou WhatsApp (opcional)</label><input id="contato" maxlength="120"></div>
+  <p id="msg" class="erro" role="alert"></p>
+  <button class="btn bloco" type="submit">Enviar</button>
+</form>
+<div class="card pilha-p">
+  <h2>Perguntas rápidas</h2>
+  <p><strong>Paguei, e agora?</strong> Toque em "Já paguei" no link que você recebeu. Quem organizou confere e confirma.</p>
+  <p><strong>O Deixa Comigo recebe meu dinheiro?</strong> Não. O Pix vai direto para a conta de quem organizou.</p>
+  <p><strong>Quero sair de uma lista ou ter meus dados apagados.</strong> Fale com quem organizou, ou escreva aqui que a gente ajuda.</p>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/config.js"></script>
+<script type="module">
+import { sb } from '/js/sb.js';
+const f = document.getElementById('f');
+f.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const mensagem = document.getElementById('msgtxt').value.trim();
+  const msg = document.getElementById('msg');
+  if (mensagem.length < 3) { msg.textContent = 'Escreva o que aconteceu.'; return; }
+  const btn = f.querySelector('button'); btn.disabled = true;
+  const { error } = await sb.from('feedbacks').insert({ pagina: ('site ' + (document.referrer || '')).slice(0, 200), mensagem, contato: document.getElementById('contato').value.trim() || null });
+  btn.disabled = false;
+  if (error) { msg.textContent = 'Não deu certo agora. Tente de novo em instantes.'; return; }
+  f.innerHTML = '<h2>Recebido!</h2><p class="muted">Obrigado por avisar. Se você deixou um contato, a gente responde.</p>';
+});
+</script>
+</main>
+<footer class="pilha-p" style="margin-top: 32px; text-align: center"><p class="pequeno"><a href="/termos/">Termos de uso</a> · <a href="/privacidade/">Política de privacidade</a> · <a href="/ajuda/">Ajuda</a></p></footer>
+</div>
+</body>
+</html>

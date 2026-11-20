@@ -1,5 +1,6 @@
 // Calculadoras públicas (sem login): atraem gente nova e levam para o app.
 import { esc } from '../js/util.js';
+import { registrar } from '../js/eventos.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -12,6 +13,7 @@ function casca(conteudo) {
     <main class="pilha">${conteudo}</main>
     <footer class="pilha-p" style="margin-top: 32px; text-align: center">
       <p class="muted pequeno">Calculadoras gratuitas do Deixa Comigo. Os resultados são estimativas a partir dos números que você informar.</p>
+      <p class="pequeno"><a href="/termos/">Termos</a> · <a href="/privacidade/">Privacidade</a> · <a href="/ajuda/">Ajuda</a></p>
     </footer>
   </div>`;
 }
@@ -39,7 +41,9 @@ function uma(calc) {
       <a class="btn lima" href="/app/#/cadastro">Criar conta grátis</a>
     </div>
   `);
+  registrar('calculadora_aberta', { calc: calc.id, logado: false });
   montarCalculadora(document.getElementById('calc-area'), calc, (dados) => {
+    registrar('calculadora_combinar', { calc: calc.id });
     guardarPreenchimento(dados);
     location.href = `/app/#/combinar/${dados.modelo}`;
   });

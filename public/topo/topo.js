@@ -1,5 +1,6 @@
 // Página do convite: a pessoa vê as regras do combinado e toca em "Topo".
 import { sb } from '../js/sb.js';
+import { registrar } from '../js/eventos.js';
 import { esc, brl, dataBR, toast, primeiroNome, copiar, linkWhatsApp } from '../js/util.js';
 import { MODELOS, textoRegra, ocupacaoHTML, categoriaDe } from '../js/combinados.js';
 
@@ -12,7 +13,7 @@ function casca(conteudo) {
     <main class="pilha">${conteudo}</main>
     <footer class="pilha-p" style="margin-top: 32px; text-align: center">
       <p class="muted pequeno">O Deixa Comigo organiza o combinado e lembra as datas. O pagamento vai direto para quem organizou: o app não recebe nem guarda dinheiro.</p>
-      <p class="pequeno"><a href="/?utm_source=link_combinado&amp;utm_medium=rodape">Quer combinar algo com o seu grupo? Deixa comigo.</a></p>
+      <p class="pequeno"><a href="/?utm_source=link_combinado&amp;utm_medium=rodape">Quer combinar algo com o seu grupo? Deixa comigo.</a> · <a href="/termos/">Termos</a> · <a href="/privacidade/">Privacidade</a> · <a href="/ajuda/">Ajuda</a></p>
     </footer>
   </div>`;
 }
@@ -114,6 +115,7 @@ async function iniciar() {
     btn.disabled = true;
     const { error: e } = await sb.rpc('aceitar_combinado', { p_token: token });
     if (e) { btn.disabled = false; toast('Não deu certo agora. Tente de novo.', 'erro'); return; }
+    registrar('topo_aceito', { modelo: k.modelo });
     document.getElementById('acao').innerHTML = `<h2>Combinado!</h2><p class="muted">${esc(org)} já sabe que você topou. Quando chegar a data, você recebe o link de pagamento.</p>`;
   });
 }

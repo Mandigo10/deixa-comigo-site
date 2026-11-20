@@ -3,308 +3,264 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deixa Comigo — o app que cobra por você</title>
-<meta name="description" content="Carona, empréstimo, racha do churrasco: o app calcula o valor justo, escreve a mensagem e lembra a pessoa no seu lugar. Sem climão.">
-<meta property="og:title" content="Deixa Comigo — o app que cobra por você">
-<meta property="og:description" content="Carona, empréstimo, racha do churrasco: o app calcula o valor justo, escreve a mensagem e lembra a pessoa no seu lugar. Sem climão.">
+<title>Deixa Comigo · Combine antes. O app cobra na data.</title>
+<meta name="description" content="Carona com vagas, vaquinha, viagem parcelada, mensalidade do grupo, carnê e cartela: todo mundo topa pelo link e o Deixa Comigo cobra na data, com Pix. Sem climão.">
+<meta property="og:title" content="Deixa Comigo · Combine antes. O app cobra na data.">
+<meta property="og:description" content="Todo mundo topa pelo link e o app cobra na data, com Pix. Ninguém precisa pedir nada.">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#16141F">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/css/app.css">
 <style>
-body{margin:0;background:#F4F2FB}
-a{color:#4B2FE0}a:hover{color:#2E1A9E}
-details summary{cursor:pointer;list-style:none}
-details summary::-webkit-details-marker{display:none}
+  .larga { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+  .nav-site { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
+  .nav-site nav { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; font-weight: 500; font-size: 0.95rem; }
+  .nav-site nav a:not(.btn) { color: var(--ink); text-decoration: none; }
+  .hero { display: flex; flex-wrap: wrap; align-items: center; gap: 56px; padding: 40px 0 88px; }
+  .hero-texto { flex: 1 1 500px; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+  .selo { align-self: flex-start; background: var(--lima); color: var(--ink); font-weight: 600; font-size: 0.85rem; padding: 8px 14px; border-radius: 999px; }
+  .h-gigante { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2.6rem, 6vw, 5rem); line-height: 0.98; letter-spacing: -0.045em; margin: 0; }
+  .h-secao { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(1.9rem, 4vw, 3.2rem); line-height: 1.05; letter-spacing: -0.035em; margin: 0; }
+  .sub { font-size: 1.2rem; color: var(--ink-2); max-width: 36rem; margin: 0; }
+  .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+  .ctas .btn { min-height: 56px; padding: 0 26px; font-size: 1.02rem; }
+  .checks { display: flex; flex-wrap: wrap; gap: 18px; font-size: 0.92rem; color: var(--ink-3); }
+  .checks span { display: inline-flex; align-items: center; gap: 6px; }
+  .celular-wrap { flex: 0 1 360px; min-width: 0; display: flex; justify-content: center; position: relative; }
+  .bola { position: absolute; top: 30px; right: -10px; width: 290px; height: 290px; border-radius: 50%; background: var(--lima); }
+  .celular { position: relative; width: 340px; max-width: 100%; background: var(--ink); border-radius: 44px; padding: 12px; box-shadow: 0 30px 60px rgba(22,20,31,0.25); }
+  .tela { background: var(--fundo); border-radius: 34px; padding: 22px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .faixa-escura { background: var(--ink); color: var(--branco); padding: 88px 0; }
+  .grade-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 18px; }
+  .card-dor { background: #24212F; border-radius: 24px; padding: 30px; display: flex; flex-direction: column; gap: 12px; }
+  .card-dor .big { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 2.6rem; line-height: 1; color: var(--lima); }
+  .card-dor p { color: #E4E1EE; font-size: 1.05rem; margin: 0; }
+  .secao { padding: 96px 0; }
+  .passo .n { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3.6rem; line-height: 1; color: var(--roxo); }
+  .usos { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  .uso { background: var(--branco); border: 2px solid var(--ink); border-radius: 26px; padding: 28px; display: flex; flex-direction: column; gap: 12px; }
+  .uso h3 { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; }
+  .uso p { margin: 0; color: var(--ink-2); }
+  .uso .det { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+  .barras { display: flex; align-items: flex-end; gap: 14px; height: 220px; padding-top: 10px; }
+  .barras div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; height: 100%; }
+  .barras span.b { width: 100%; background: var(--lima); border-radius: 12px 12px 4px 4px; }
+  .barras strong { color: var(--branco); }
+  .barras small { color: #C9C5D6; font-size: 0.82rem; text-align: center; }
+  .planos { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; align-items: stretch; }
+  .plano { background: var(--branco); border: 2px solid var(--linha); border-radius: 26px; padding: 32px; display: flex; flex-direction: column; gap: 16px; }
+  .plano.top { background: var(--ink); color: var(--branco); border-color: var(--ink); }
+  .plano ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; }
+  .plano.top li { color: #E4E1EE; }
+  .preco { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 2.8rem; letter-spacing: -0.04em; }
+  details.faq { background: var(--branco); border: 2px solid var(--linha); border-radius: 18px; padding: 18px 22px; }
+  details.faq summary { font-weight: 700; font-size: 1.05rem; cursor: pointer; min-height: 32px; list-style: none; }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq p { margin: 12px 0 0; color: var(--ink-2); }
+  .cta-final { background: var(--lima); border-radius: 36px; padding: clamp(32px, 6vw, 80px); display: flex; flex-direction: column; gap: 24px; align-items: flex-start; }
+  .rodape-site { padding: 32px 24px 48px; max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 0.9rem; color: var(--ink-3); }
+  .rodape-site a { color: var(--ink-2); }
 </style>
 </head>
 <body>
-<div style="width: 100%; min-height: 100%; background: #F4F2FB; color: #16141F; font-family: Inter, system-ui, sans-serif; font-size: 1rem; line-height: 1.55">
-
-<!-- NAV -->
-<header style="max-width: 1200px; margin: 0 auto; padding: 24px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
-<a href="#topo" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #16141F">
-<span style="width: 40px; height: 40px; border-radius: 12px; background: #16141F; color: #C8F135; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 0.8rem; letter-spacing: -0.02em">dx<br>cmg</span>
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.03em">Deixa Comigo</span>
-</a>
-<nav style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px; font-weight: 500; font-size: 0.95rem">
-<a href="#como-funciona" style="color: #16141F; text-decoration: none">Como funciona</a>
-<a href="#planos" style="color: #16141F; text-decoration: none">Planos</a>
-<a href="#duvidas" style="color: #16141F; text-decoration: none">Dúvidas</a>
-<a href="#lista" style="background: #16141F; color: #FFFFFF; text-decoration: none; padding: 12px 20px; border-radius: 999px; font-weight: 600; min-height: 44px; box-sizing: border-box; display: inline-flex; align-items: center">Quero acesso antecipado</a>
-</nav>
+<header class="nav-site">
+  <a class="marca" href="/"><span class="logo">dx<br>cmg</span><span class="marca-nome">Deixa Comigo</span></a>
+  <nav aria-label="Menu do site">
+    <a href="#como-funciona">Como funciona</a>
+    <a href="#para-quem">Para quem</a>
+    <a href="/calculadoras/">Calculadoras</a>
+    <a href="#planos">Planos</a>
+    <a href="/app/">Entrar</a>
+    <a class="btn peq" href="/app/#/cadastro" data-cta="nav">Criar conta grátis</a>
+  </nav>
 </header>
 
-<!-- HERO -->
-<section id="topo" style="max-width: 1200px; margin: 0 auto; padding: 48px 24px 96px; display: flex; flex-wrap: wrap; align-items: center; gap: 64px">
-<div style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 28px">
-<span style="align-self: flex-start; background: #C8F135; color: #16141F; font-weight: 600; font-size: 0.85rem; padding: 8px 14px; border-radius: 999px">O app que fala o que você tem vergonha de falar</span>
-<h1 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2.8rem, 6vw, 5.4rem); line-height: 0.98; letter-spacing: -0.045em">Cobrar amigo é chato.<br><span style="color: #4B2FE0">Deixa comigo.</span></h1>
-<p style="margin: 0; font-size: 1.25rem; color: #4A4659; max-width: 34rem">Carona, dinheiro emprestado, racha do churrasco. O app calcula o valor justo, escreve a mensagem certa e lembra a pessoa no seu lugar. Você só aperta enviar. <strong style="color: #16141F">Sem climão.</strong></p>
-<form class="lead-form" data-origem="geral" novalidate id="lista" style="display: flex; flex-wrap: wrap; gap: 12px; max-width: 34rem">
-<label for="hero-zap" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Seu WhatsApp ou e-mail</label>
-<input id="hero-zap" type="text" name="contato" required maxlength="120" autocomplete="email" placeholder="Seu WhatsApp ou e-mail" style="flex: 1 1 240px; min-height: 56px; box-sizing: border-box; padding: 0 20px; border-radius: 16px; border: 2px solid #16141F; background: #FFFFFF; font: inherit; font-size: 1rem; color: #16141F">
-<button type="submit" style="flex: 0 0 auto; min-height: 56px; padding: 0 28px; border-radius: 16px; border: 0; background: #4B2FE0; color: #FFFFFF; font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer">Entrar na lista</button>
-<input type="text" name="empresa" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px">
-<p class="form-status" role="status" aria-live="polite" style="flex-basis: 100%; margin: 0; font-weight: 600; min-height: 1.5em"></p>
-</form>
-<div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 0.9rem; color: #57536A">
-<span style="display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Grátis para começar</span>
-<span style="display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>O Pix cai direto na sua conta</span>
-<span style="display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Lançamento em [DATA]</span>
-</div>
-</div>
-
-<!-- PHONE -->
-<div style="flex: 0 1 360px; min-width: 0; display: flex; justify-content: center; position: relative">
-<div style="position: absolute; top: 40px; right: -12px; width: 300px; height: 300px; border-radius: 50%; background: #C8F135" aria-hidden="true"></div>
-<div style="position: relative; width: 340px; max-width: 100%; background: #16141F; border-radius: 44px; padding: 12px; box-sizing: border-box; box-shadow: 0 30px 60px rgba(22,20,31,0.25)">
-<div style="background: #EFECE6; border-radius: 34px; overflow: hidden; display: flex; flex-direction: column">
-<div style="background: #FFFFFF; padding: 18px 18px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #E2DED6">
-<span style="width: 38px; height: 38px; border-radius: 50%; background: #DCD6FF; color: #2E1A9E; display: flex; align-items: center; justify-content: center; font-weight: 700">L</span>
-<div style="display: flex; flex-direction: column"><strong style="font-size: 0.95rem">Lucas (trabalho)</strong><span style="font-size: 0.75rem; color: #57536A">online</span></div>
-</div>
-<div style="padding: 18px 14px 22px; display: flex; flex-direction: column; gap: 10px; font-size: 0.88rem">
-<div style="align-self: flex-end; max-width: 86%; background: #D9FDD3; padding: 10px 12px; border-radius: 14px 14px 4px 14px">Oi, Lucas! Fiz as contas da nossa carona pra ficar justo pros dois. Novembro deu R$ 148,00, o Pix tá no link. Valeu pela companhia!</div>
-<div style="align-self: flex-end; width: 86%; background: #FFFFFF; border-radius: 14px; overflow: hidden; border: 1px solid #E2DED6">
-<div style="background: #16141F; color: #FFFFFF; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem"><span style="font-weight: 600">Carona · Novembro</span><span style="color: #C8F135; font-weight: 700">dx cmg</span></div>
-<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 0.8rem; color: #4A4659">
-<div style="display: flex; justify-content: space-between"><span>20 dias · 18 km/dia</span><span></span></div>
-<div style="display: flex; justify-content: space-between"><span>Combustível</span><span>R$ 112,00</span></div>
-<div style="display: flex; justify-content: space-between"><span>Pneu e revisão</span><span>R$ 36,00</span></div>
-<div style="display: flex; justify-content: space-between; border-top: 1px dashed #CFCADC; padding-top: 8px; color: #16141F; font-weight: 700; font-size: 0.95rem"><span>Sua parte</span><span>R$ 148,00</span></div>
-<span style="margin-top: 6px; background: #4B2FE0; color: #FFFFFF; text-align: center; border-radius: 10px; padding: 9px; font-weight: 600">Ver extrato e pagar com Pix</span>
-</div>
-</div>
-<div style="align-self: flex-start; max-width: 80%; background: #FFFFFF; padding: 10px 12px; border-radius: 14px 14px 14px 4px">Opa, justíssimo! Já mando.</div>
-<div style="align-self: center; background: #16141F; color: #FFFFFF; font-size: 0.75rem; padding: 6px 12px; border-radius: 999px; display: flex; align-items: center; gap: 6px"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C8F135" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Lucas marcou como pago</div>
-<span style="align-self: flex-end; font-size: 0.7rem; color: #57536A">enviado por dx cmg</span>
-</div>
-</div>
-</div>
-</div>
+<main>
+<section class="larga hero">
+  <div class="hero-texto">
+    <span class="selo">Combine antes. Cobre sem climão.</span>
+    <h1 class="h-gigante">Combinou antes,<br><span style="color: var(--roxo)">deixa que o app cobra.</span></h1>
+    <p class="sub">Carona com vagas, vaquinha do churrasco, viagem parcelada, a pelada do mês ou o carnê das suas clientes. Todo mundo topa as regras pelo link e o Deixa Comigo cobra na data, com Pix. <strong style="color: var(--ink)">Ninguém precisa pedir nada.</strong></p>
+    <div class="ctas">
+      <a class="btn" href="/app/#/cadastro" data-cta="hero">Criar conta grátis</a>
+      <a class="btn sec" href="#como-funciona">Ver como funciona</a>
+    </div>
+    <div class="checks">
+      <span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Grátis para começar</span>
+      <span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>O Pix cai direto na sua conta</span>
+      <span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>Sem baixar nada</span>
+    </div>
+  </div>
+  <div class="celular-wrap">
+    <div class="bola" aria-hidden="true"></div>
+    <div class="celular" role="img" aria-label="Exemplo: carona para o trabalho com 3 de 4 vagas preenchidas, R$ 32,07 por pessoa por semana, caindo para R$ 25,66 se mais uma pessoa entrar">
+      <div class="tela" aria-hidden="true">
+        <p class="muted pequeno">Marina está oferecendo carona:</p>
+        <p class="display" style="font-size: 1.5rem; font-weight: 800; margin: 0">Carona para o trabalho</p>
+        <div class="card escuro" style="padding: 16px">
+          <p class="muted pequeno" style="margin:0">Valor por pessoa por semana</p>
+          <p class="numero" style="color: var(--lima); margin: 0">R$ 32,07</p>
+          <p class="pequeno" style="margin: 0"><strong style="color: var(--lima)">Se mais 1 entrar, cai para R$ 25,66.</strong></p>
+        </div>
+        <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+          <div class="linha-flex entre"><strong>Ocupação do carro</strong><span class="pequeno">3 de 4</span></div>
+          <div class="ocupacao"><span style="width: 75%"></span></div>
+          <div class="nomes"><span>Lucas</span><span>Ana</span><span>Rafa</span><span class="vaga">vaga livre</span></div>
+        </div>
+        <span class="btn lima bloco">Quero a vaga</span>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- DOR -->
-<section style="background: #16141F; color: #FFFFFF; padding: 96px 24px">
-<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px">
-<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.05; letter-spacing: -0.035em; max-width: 46rem">Você não é mão de vaca. <span style="color: #C8F135">Só não quer perder o amigo.</span></h2>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px">
-<div style="background: #24212F; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3rem; line-height: 1; color: #C8F135">6 meses</span>
-<p style="margin: 0; font-size: 1.1rem; color: #E4E1EE">dando carona todo dia, e ninguém nunca tocou no assunto da gasolina.</p>
-</div>
-<div style="background: #24212F; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3rem; line-height: 1; color: #C8F135">"Te passo"</span>
-<p style="margin: 0; font-size: 1.1rem; color: #E4E1EE">foi o que disseram quando você emprestou o dinheiro. E toda vez que se encontram, você fica sem jeito de lembrar.</p>
-</div>
-<div style="background: #24212F; border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 14px">
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3rem; line-height: 1; color: #C8F135">4 de 12</span>
-<p style="margin: 0; font-size: 1.1rem; color: #E4E1EE">ainda não pagaram o churrasco. E você prefere tirar do bolso a cobrar no grupo.</p>
-</div>
-</div>
-<p style="margin: 0; font-size: 1.15rem; color: #C9C5D6; max-width: 40rem">O problema nunca foi o dinheiro. É <strong style="color: #FFFFFF">ter que pedir</strong>. Então a gente pede por você.</p>
-</div>
+<section class="faixa-escura">
+  <div class="larga pilha" style="gap: 40px">
+    <h2 class="h-secao" style="max-width: 44rem">O problema nunca foi o dinheiro. <span style="color: var(--lima)">É ter que pedir.</span></h2>
+    <div class="grade-3">
+      <div class="card-dor"><span class="big">6 meses</span><p>dando carona todo dia, e ninguém nunca tocou no assunto da gasolina.</p></div>
+      <div class="card-dor"><span class="big">4 de 12</span><p>ainda não pagaram o churrasco. E você prefere tirar do bolso a cobrar no grupo.</p></div>
+      <div class="card-dor"><span class="big">O caderno</span><p>da vendedora, com cada cliente, parcela e data anotados à mão, e a vergonha de lembrar quem atrasou.</p></div>
+    </div>
+  </div>
 </section>
 
-<!-- 3 MODOS -->
-<section style="max-width: 1200px; margin: 0 auto; padding: 112px 24px 56px; display: flex; flex-direction: column; gap: 48px">
-<div style="display: flex; flex-direction: column; gap: 14px; max-width: 44rem">
-<span style="font-weight: 700; color: #4B2FE0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem">Três jeitos de destravar</span>
-<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.05; letter-spacing: -0.035em">Um app para todo "depois eu te passo".</h2>
-</div>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px">
-
-<article style="background: #FFFFFF; border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 18px; border: 2px solid #16141F">
-<span style="width: 60px; height: 60px; border-radius: 18px; background: #C8F135; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3l2-5h14l2 5v3z"/><path d="M3 13h18"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/></svg></span>
-<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.8rem; letter-spacing: -0.03em">Carona</h3>
-<p style="margin: 0; color: #4A4659">Informe o trajeto e o carro. O app divide combustível, pneu e revisão entre os passageiros e fecha o mês sozinho.</p>
-<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-weight: 500">
-<li>· Valor por dia, por pessoa</li>
-<li>· Fechamento mensal automático</li>
-<li>· Falta de um dia? Desconta sozinho</li>
-</ul>
-</article>
-
-<article style="background: #FFFFFF; border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 18px; border: 2px solid #16141F">
-<span style="width: 60px; height: 60px; border-radius: 18px; background: #DCD6FF; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3"/><path d="M20 16H6l3 3"/></svg></span>
-<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.8rem; letter-spacing: -0.03em">Empréstimo</h3>
-<p style="margin: 0; color: #4A4659">Registre quanto emprestou e quando combinou. O app lembra com jeitinho antes do prazo, e mais direto depois.</p>
-<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-weight: 500">
-<li>· Parcelas, se precisar</li>
-<li>· A pessoa pode pagar só uma parte</li>
-<li>· Histórico de tudo que já voltou</li>
-</ul>
-</article>
-
-<article style="background: #FFFFFF; border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 18px; border: 2px solid #16141F">
-<span style="width: 60px; height: 60px; border-radius: 18px; background: #FFD9C2; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 6"/></svg></span>
-<h3 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.8rem; letter-spacing: -0.03em">Racha</h3>
-<p style="margin: 0; color: #4A4659">Churrasco, viagem, presente do chefe. Cada um lança o que pagou, o app calcula quem deve para quem.</p>
-<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-weight: 500">
-<li>· Lembrete no privado, nunca no grupo</li>
-<li>· Ninguém é exposto</li>
-<li>· Painel de quem já pagou</li>
-</ul>
-</article>
-</div>
+<section id="como-funciona" class="larga secao pilha" style="gap: 40px">
+  <div class="pilha-p" style="max-width: 44rem">
+    <span style="font-weight: 700; color: var(--roxo); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem">Como funciona</span>
+    <h2 class="h-secao">Combina uma vez. O app cuida do resto.</h2>
+  </div>
+  <div class="grade-3">
+    <div class="passo pilha-p"><span class="n">1</span><h3>Você combina</h3><p class="muted">Valor, datas e vagas. Se for carona, o app calcula o custo real do carro, com combustível, pneus e pedágio.</p></div>
+    <div class="passo pilha-p"><span class="n">2</span><h3>Todo mundo topa pelo link</h3><p class="muted">Você manda no grupo do WhatsApp. Cada um entra sozinho, vê as regras e toca em "Topo".</p></div>
+    <div class="passo pilha-p"><span class="n">3</span><h3>O app cobra na data</h3><p class="muted">A mensagem sai pronta, no tom que você escolher, com o Pix. Você vê quem pagou sem precisar perguntar.</p></div>
+  </div>
 </section>
 
-<!-- COMO FUNCIONA + TOM -->
-<section id="como-funciona" style="max-width: 1200px; margin: 0 auto; padding: 56px 24px 112px; display: flex; flex-direction: column; gap: 48px">
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px">
-<div style="display: flex; flex-direction: column; gap: 10px; padding: 8px 0">
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 4rem; line-height: 1; color: #4B2FE0">1</span>
-<h3 style="margin: 0; font-size: 1.25rem">Conte a situação</h3>
-<p style="margin: 0; color: #4A4659">Carona, empréstimo ou racha. Leva menos de um minuto.</p>
-</div>
-<div style="display: flex; flex-direction: column; gap: 10px; padding: 8px 0">
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 4rem; line-height: 1; color: #4B2FE0">2</span>
-<h3 style="margin: 0; font-size: 1.25rem">O app calcula e escreve</h3>
-<p style="margin: 0; color: #4A4659">Valor justo, extrato bonito e a mensagem no tom que você escolher.</p>
-</div>
-<div style="display: flex; flex-direction: column; gap: 10px; padding: 8px 0">
-<span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 4rem; line-height: 1; color: #4B2FE0">3</span>
-<h3 style="margin: 0; font-size: 1.25rem">Você só aperta enviar</h3>
-<p style="margin: 0; color: #4A4659">Vai pelo seu WhatsApp. O Pix cai direto na sua conta. Os lembretes, a gente cuida.</p>
-</div>
-</div>
-
-<div style="background: #4B2FE0; color: #FFFFFF; border-radius: 36px; padding: clamp(28px, 5vw, 64px); display: flex; flex-wrap: wrap; gap: 48px; align-items: center">
-<div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
-<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.05; letter-spacing: -0.035em">Você escolhe o tom.<br>A gente acha as palavras.</h2>
-<p style="margin: 0; font-size: 1.1rem; color: #E9E5FF">Teste agora: toque em cada tom e veja a mesma cobrança mudar.</p>
-<div style="display: flex; flex-wrap: wrap; gap: 10px" role="group" aria-label="Tom da mensagem">
-<button type="button" class="tone-btn" data-tone="leve" aria-pressed="true" style="min-height: 48px; padding: 0 24px; border-radius: 999px; border: 2px solid #C8F135; background: #C8F135; color: #16141F; font: inherit; font-weight: 700; cursor: pointer">Leve</button>
-<button type="button" class="tone-btn" data-tone="neutro" aria-pressed="false" style="min-height: 48px; padding: 0 24px; border-radius: 999px; border: 2px solid #FFFFFF; background: transparent; color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer">Neutro</button>
-<button type="button" class="tone-btn" data-tone="firme" aria-pressed="false" style="min-height: 48px; padding: 0 24px; border-radius: 999px; border: 2px solid #FFFFFF; background: transparent; color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer">Firme</button>
-</div>
-</div>
-<div style="flex: 1 1 380px; min-width: 0; background: #EFECE6; border-radius: 28px; padding: 24px; display: flex; flex-direction: column; gap: 10px; color: #16141F">
-<span style="font-size: 0.8rem; color: #4A4659; font-weight: 600">Prévia da mensagem · <span id="tone-label">Leve</span></span>
-<div style="align-self: flex-end; background: #D9FDD3; padding: 14px 16px; border-radius: 18px 18px 4px 18px; font-size: 1.02rem; line-height: 1.5"><span id="tone-msg"></span></div>
-<span style="align-self: flex-end; font-size: 0.75rem; color: #57536A">enviado por dx cmg</span>
-</div>
-</div>
+<section id="para-quem" class="larga pilha" style="gap: 40px; padding-bottom: 96px">
+  <div class="pilha-p" style="max-width: 44rem">
+    <span style="font-weight: 700; color: var(--roxo); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem">Para quem</span>
+    <h2 class="h-secao">Para todo "depois eu te passo".</h2>
+  </div>
+  <div class="usos">
+    <article class="uso"><span class="icone lima"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3l2-5h14l2 5v3z"/><path d="M3 13h18"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/></svg></span><h3>Carona com vagas</h3><p>Ofereça as vagas do carro por link. O custo é dividido entre quem entra, e o preço cai a cada pessoa.</p><span class="det">Ocupação visível · semanal ou mensal</span></article>
+    <article class="uso"><span class="icone pessego"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10c0-3.3-3.1-6-7-6S5 6.7 5 10c0 2 1.1 3.7 2.8 4.8L7 19h3l.5-1.6c.5.1 1 .1 1.5.1s1 0 1.5-.1L14 19h3l-.8-4.2c1.1-.7 2-1.7 2.4-2.8H21v-3h-2.2"/></svg></span><h3>Vaquinha</h3><p>Churrasco, festa, presente. No lugar da enquete do WhatsApp, cada um coloca o nome na lista e paga antes.</p><span class="det">Ninguém adianta dinheiro · ninguém é exposto</span></article>
+    <article class="uso"><span class="icone roxo"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5L3 11l1.5-1.5 7.5 1L16.5 6a2 2 0 0 1 3 3L15 13.5l1 7.5-1.5 1.5-2.5-7.5-3 3V21l-1.5 1-1.5-3.5L2.5 17l1-1.5h3z"/></svg></span><h3>Viagem parcelada</h3><p>O valor da viagem dividido em parcelas até a data. Cada um recebe a sua, todo mês.</p><span class="det">Parcela 1/6, 2/6… sozinho</span></article>
+    <article class="uso"><span class="icone lima"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><h3>Mensalidade do grupo</h3><p>Pelada, quadra, república, streaming dividido. Cobra todo mês sem ninguém precisar lembrar.</p><span class="det">Semanal ou mensal · aviso na véspera</span></article>
+    <article class="uso"><span class="icone pessego"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1 13H6z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg></span><h3>Venda parcelada (carnê)</h3><p>Para quem vende perfume, roupa e cosméticos. Troque o caderno: o app cobra cada parcela e mostra quem atrasou.</p><span class="det">A cliente confirma a compra pelo link</span></article>
+    <article class="uso"><span class="icone roxo"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg></span><h3>Cartela de números ou nomes</h3><p>A grade do papel no celular: cada um escolhe o seu pelo link e paga com Pix. Você lança também o que vendeu no papel.</p><span class="det">Para contribuições e vendas · sem sorteio</span></article>
+  </div>
 </section>
 
-<!-- GARANTIAS -->
-<section style="background: #FFFFFF; padding: 96px 24px; border-top: 2px solid #16141F; border-bottom: 2px solid #16141F">
-<div style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 40px">
-<div style="display: flex; flex-direction: column; gap: 10px">
-<svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-<h3 style="margin: 0; font-size: 1.15rem">O app nunca toca no seu dinheiro</h3>
-<p style="margin: 0; color: #4A4659">O Pix vai direto da conta da pessoa para a sua.</p>
-</div>
-<div style="display: flex; flex-direction: column; gap: 10px">
-<svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M17 8h5M19.5 5.5v5"/></svg>
-<h3 style="margin: 0; font-size: 1.15rem">Ninguém é exposto</h3>
-<p style="margin: 0; color: #4A4659">Cada lembrete chega no privado. Nada de lista de devedores no grupo.</p>
-</div>
-<div style="display: flex; flex-direction: column; gap: 10px">
-<svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
-<h3 style="margin: 0; font-size: 1.15rem">Lembretes que não constrangem</h3>
-<p style="margin: 0; color: #4A4659">Leves no começo, mais diretos só se precisar. Você decide.</p>
-</div>
-<div style="display: flex; flex-direction: column; gap: 10px">
-<svg aria-hidden="true" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg>
-<h3 style="margin: 0; font-size: 1.15rem">Botão "já paguei"</h3>
-<p style="margin: 0; color: #4A4659">A pessoa avisa que pagou e você fica sabendo na hora, sem precisar perguntar.</p>
-</div>
-</div>
+<section class="faixa-escura">
+  <div class="larga" style="display: flex; flex-wrap: wrap; gap: 48px; align-items: center">
+    <div class="pilha" style="flex: 1 1 380px; min-width: 0">
+      <h2 class="h-secao">Quanto mais gente, <span style="color: var(--lima)">mais barato para todo mundo.</span></h2>
+      <p style="color: #E4E1EE; font-size: 1.1rem; margin: 0">Na carona e na vaquinha com valor total, o custo é dividido entre quem entra. Cada pessoa nova baixa o preço de todos, e todo mundo vê isso. Esse é o melhor convite que existe.</p>
+      <a class="btn lima" href="/calculadoras/?c=carona" style="align-self: flex-start">Calcular o custo real da minha carona</a>
+    </div>
+    <div class="card escuro" style="flex: 1 1 380px; min-width: 0; background: #24212F; border-color: #24212F" role="img" aria-label="Carona com custo de R$ 128,29 por semana: com 1 passageiro, R$ 64,15 por pessoa; com 2, R$ 42,76; com 3, R$ 32,07; com 4, R$ 25,66">
+      <p class="muted pequeno" aria-hidden="true">Custo do carro: R$ 128,29 por semana, dividido com o motorista</p>
+      <div class="barras" aria-hidden="true">
+        <div><strong>R$ 64</strong><span class="b" style="height: 100%"></span><small>1 passageiro</small></div>
+        <div><strong>R$ 43</strong><span class="b" style="height: 67%"></span><small>2</small></div>
+        <div><strong>R$ 32</strong><span class="b" style="height: 50%"></span><small>3</small></div>
+        <div><strong>R$ 26</strong><span class="b" style="height: 40%"></span><small>4</small></div>
+      </div>
+    </div>
+  </div>
 </section>
 
-<!-- PLANOS -->
-<section id="planos" style="max-width: 1200px; margin: 0 auto; padding: 112px 24px; display: flex; flex-direction: column; gap: 48px">
-<div style="display: flex; flex-direction: column; gap: 14px; max-width: 44rem">
-<span style="font-weight: 700; color: #4B2FE0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem">Planos</span>
-<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2rem, 4vw, 3.4rem); line-height: 1.05; letter-spacing: -0.035em">Custa menos que um litro de gasolina.</h2>
-</div>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: stretch">
-
-<div style="background: #FFFFFF; border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 20px; border: 2px solid #D8D4E6">
-<h3 style="margin: 0; font-size: 1.2rem">Grátis</h3>
-<div style="display: flex; align-items: baseline; gap: 6px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3rem; letter-spacing: -0.04em">R$ 0</span></div>
-<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: #4A4659; flex: 1 1 auto">
-<li>· Até 2 cobranças ativas</li>
-<li>· Os três modos: carona, empréstimo e racha</li>
-<li>· 1 lembrete automático por cobrança</li>
-</ul>
-<a href="#lista" data-plano="gratis" style="min-height: 52px; border-radius: 14px; border: 2px solid #16141F; color: #16141F; text-decoration: none; font-weight: 700; display: flex; align-items: center; justify-content: center">Começar grátis</a>
-</div>
-
-<div style="background: #16141F; color: #FFFFFF; border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 20px; position: relative">
-<span style="position: absolute; top: -14px; left: 36px; background: #C8F135; color: #16141F; font-weight: 700; font-size: 0.8rem; padding: 6px 12px; border-radius: 999px">Mais escolhido</span>
-<h3 style="margin: 0; font-size: 1.2rem">Plus</h3>
-<div style="display: flex; align-items: baseline; gap: 6px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3rem; letter-spacing: -0.04em">R$ 9,90</span><span style="color: #C9C5D6">/mês</span></div>
-<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: #E4E1EE; flex: 1 1 auto">
-<li>· Cobranças ilimitadas</li>
-<li>· Lembretes automáticos ilimitados</li>
-<li>· Carona recorrente com fechamento mensal</li>
-<li>· Tons de mensagem personalizados</li>
-<li>· Sem o "enviado por dx cmg"</li>
-</ul>
-<a href="#lista" data-plano="plus" style="min-height: 52px; border-radius: 14px; background: #C8F135; color: #16141F; text-decoration: none; font-weight: 700; display: flex; align-items: center; justify-content: center">Quero o Plus</a>
-<span style="font-size: 0.85rem; color: #C9C5D6; text-align: center">ou R$ 79 por ano (2 meses grátis)</span>
-</div>
-
-<div style="background: #FFFFFF; border-radius: 28px; padding: 36px; display: flex; flex-direction: column; gap: 20px; border: 2px solid #D8D4E6">
-<div style="display: flex; align-items: center; gap: 10px"><h3 style="margin: 0; font-size: 1.2rem">Autônomo</h3><span style="background: #DCD6FF; color: #2E1A9E; font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 999px">Em breve</span></div>
-<div style="display: flex; align-items: baseline; gap: 6px"><span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 3rem; letter-spacing: -0.04em">R$ 24,90</span><span style="color: #57536A">/mês</span></div>
-<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: #4A4659; flex: 1 1 auto">
-<li>· Para diarista, professor, personal, manicure</li>
-<li>· Cobrança mensal dos clientes no automático</li>
-<li>· Aviso de reajuste anual, escrito por nós</li>
-</ul>
-<a href="#lista" data-plano="autonomo" style="min-height: 52px; border-radius: 14px; border: 2px solid #16141F; color: #16141F; text-decoration: none; font-weight: 700; display: flex; align-items: center; justify-content: center">Me avise quando lançar</a>
-</div>
-</div>
+<section class="larga secao pilha" style="gap: 32px">
+  <div class="grade-3" style="grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 32px">
+    <div class="pilha-p"><h3>O app nunca toca no seu dinheiro</h3><p class="muted">O Pix vai direto da conta da pessoa para a sua.</p></div>
+    <div class="pilha-p"><h3>Ninguém é exposto</h3><p class="muted">O grupo vê quem está dentro, nunca quem pagou ou deixou de pagar.</p></div>
+    <div class="pilha-p"><h3>Lembretes que não constrangem</h3><p class="muted">Aviso na véspera e lembrete depois, no tom que você escolher: leve, neutro ou firme.</p></div>
+    <div class="pilha-p"><h3>Botão "Já paguei"</h3><p class="muted">A pessoa avisa que pagou, e você só confirma.</p></div>
+  </div>
 </section>
 
-<!-- FAQ -->
-<section id="duvidas" style="max-width: 860px; margin: 0 auto; padding: 0 24px 112px; display: flex; flex-direction: column; gap: 32px">
-<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -0.035em">Dúvidas</h2>
-<div style="display: flex; flex-direction: column; gap: 12px">
-<details style="background: #FFFFFF; border-radius: 20px; padding: 22px 26px; border: 2px solid #D8D4E6">
-<summary style="font-weight: 700; font-size: 1.1rem">A pessoa não vai achar estranho receber uma cobrança de um app?</summary>
-<p style="margin: 14px 0 0; color: #4A4659">É justamente o contrário: o app tira o peso pessoal. A conta é clara, o valor é justo e ninguém precisa negociar olho no olho. A mensagem sai do seu WhatsApp, do seu jeito.</p>
-</details>
-<details style="background: #FFFFFF; border-radius: 20px; padding: 22px 26px; border: 2px solid #D8D4E6">
-<summary style="font-weight: 700; font-size: 1.1rem">O Deixa Comigo mexe no meu dinheiro?</summary>
-<p style="margin: 14px 0 0; color: #4A4659">Não. O app só gera o link com a sua chave Pix. O dinheiro vai direto para a sua conta.</p>
-</details>
-<details style="background: #FFFFFF; border-radius: 20px; padding: 22px 26px; border: 2px solid #D8D4E6">
-<summary style="font-weight: 700; font-size: 1.1rem">Na carona, posso cobrar mais do que o custo?</summary>
-<p style="margin: 14px 0 0; color: #4A4659">O Deixa Comigo foi feito para dividir os custos da carona (combustível, pneu, revisão) de forma justa entre quem vai junto. Não é um serviço de transporte remunerado.</p>
-</details>
-<details style="background: #FFFFFF; border-radius: 20px; padding: 22px 26px; border: 2px solid #D8D4E6">
-<summary style="font-weight: 700; font-size: 1.1rem">Quando lança?</summary>
-<p style="margin: 14px 0 0; color: #4A4659">Em [DATA]. Quem entra na lista agora testa antes de todo mundo e ganha [BENEFÍCIO DA LISTA].</p>
-</details>
-</div>
+<section id="planos" class="larga pilha" style="gap: 32px; padding-bottom: 96px">
+  <div class="pilha-p" style="max-width: 44rem">
+    <span style="font-weight: 700; color: var(--roxo); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem">Planos</span>
+    <h2 class="h-secao">Comece grátis. Hoje.</h2>
+  </div>
+  <div class="planos">
+    <div class="plano">
+      <h3>Grátis</h3><span class="preco">R$ 0</span>
+      <ul class="muted">
+        <li>· Combinados, vaquinhas, viagens e mensalidades</li>
+        <li>· Listas abertas de até 10 pessoas</li>
+        <li>· Venda parcelada e cartelas de até 100 números</li>
+        <li>· Calculadoras e painel de quem te deve</li>
+        <li>· Mensagens com "enviado por dx cmg"</li>
+      </ul>
+      <a class="btn sec" href="/app/#/cadastro" data-cta="plano_gratis">Criar conta grátis</a>
+    </div>
+    <div class="plano top">
+      <div class="linha-flex entre"><h3>Plus</h3><span class="tag" style="background: var(--lima); color: var(--ink)">Em breve</span></div>
+      <div><span class="preco">R$ 9,90</span><span style="color: #C9C5D6">/mês</span></div>
+      <ul>
+        <li>· Tudo ilimitado (listas, cartelas, combinados)</li>
+        <li>· O app manda as cobranças sozinho no WhatsApp</li>
+        <li>· Sem o "enviado por dx cmg"</li>
+        <li>· Avisos no celular quando alguém paga</li>
+      </ul>
+      <a class="btn lima" href="#avise-plus" data-plano="plus">Quero o Plus</a>
+    </div>
+    <div class="plano">
+      <div class="linha-flex entre"><h3>Autônomo</h3><span class="tag neutra">Em breve</span></div>
+      <div><span class="preco">R$ 24,90</span><span class="muted">/mês</span></div>
+      <ul class="muted">
+        <li>· Para diarista, professor, personal, vendedoras</li>
+        <li>· Clientes, carnês e cobranças ilimitados</li>
+        <li>· Aviso de reajuste anual e recibos</li>
+      </ul>
+      <a class="btn sec" href="/autonomos/" data-plano="autonomo">Saiba mais</a>
+    </div>
+  </div>
+  <form id="avise-plus" class="lead-form card pilha-p" data-origem="geral" novalidate style="max-width: 560px">
+    <span style="font-weight: 700">Quer saber quando o Plus chegar?</span>
+    <div class="linha-flex" style="flex-wrap: wrap">
+      <label for="lead-contato" class="sr">Seu WhatsApp ou e-mail</label>
+      <input id="lead-contato" type="text" name="contato" required maxlength="120" autocomplete="email" placeholder="Seu WhatsApp ou e-mail" style="flex: 1 1 220px">
+      <button type="submit" class="btn">Me avise</button>
+    </div>
+    <input type="text" name="empresa" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px">
+    <p class="form-status" role="status" aria-live="polite" style="margin: 0; font-weight: 600; min-height: 1.5em"></p>
+  </form>
 </section>
 
-<!-- CTA FINAL -->
-<section style="padding: 0 24px 96px">
-<div style="max-width: 1200px; margin: 0 auto; background: #C8F135; border-radius: 40px; padding: clamp(36px, 6vw, 88px); display: flex; flex-direction: column; align-items: flex-start; gap: 28px">
-<h2 style="margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(2.4rem, 5.5vw, 4.8rem); line-height: 0.98; letter-spacing: -0.045em; max-width: 52rem">Para de engolir seco.<br>Deixa comigo.</h2>
-<form class="lead-form" data-origem="geral" novalidate style="display: flex; flex-wrap: wrap; gap: 12px; width: 100%; max-width: 36rem">
-<label for="cta-zap" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Seu WhatsApp ou e-mail</label>
-<input id="cta-zap" type="text" name="contato" required maxlength="120" autocomplete="email" placeholder="Seu WhatsApp ou e-mail" style="flex: 1 1 240px; min-height: 56px; box-sizing: border-box; padding: 0 20px; border-radius: 16px; border: 2px solid #16141F; background: #FFFFFF; font: inherit; font-size: 1rem; color: #16141F">
-<button type="submit" style="flex: 0 0 auto; min-height: 56px; padding: 0 28px; border-radius: 16px; border: 0; background: #16141F; color: #FFFFFF; font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer">Quero acesso antecipado</button>
-<input type="text" name="empresa" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px">
-<p class="form-status" role="status" aria-live="polite" style="flex-basis: 100%; margin: 0; font-weight: 600; min-height: 1.5em"></p>
-</form>
-</div>
+<section class="larga pilha" style="gap: 24px; padding-bottom: 96px; max-width: 860px">
+  <h2 class="h-secao">Dúvidas</h2>
+  <details class="faq"><summary>É grátis mesmo?</summary><p>Sim. O plano grátis já faz tudo o que está nesta página, com alguns limites (por exemplo, listas de até 10 pessoas). O Plus, com o envio automático no WhatsApp, chega em breve.</p></details>
+  <details class="faq"><summary>O Deixa Comigo recebe ou guarda dinheiro?</summary><p>Não. O app só gera o link com a sua chave Pix. O dinheiro vai direto da conta da pessoa para a sua.</p></details>
+  <details class="faq"><summary>Preciso baixar algum app?</summary><p>Não. Funciona no navegador do celular. Se quiser, dá para colocar o ícone na tela inicial. Quem recebe o link não precisa nem criar conta.</p></details>
+  <details class="faq"><summary>Na carona, posso cobrar mais do que o custo?</summary><p>O Deixa Comigo foi feito para dividir os custos da carona (combustível, manutenção, pedágio) entre quem vai junto. Não é um serviço de transporte remunerado.</p></details>
+  <details class="faq"><summary>A cartela é rifa?</summary><p>Não. A cartela organiza contribuições e vendas (chá de bebê, "o número é o valor", vendas por número) e não tem prêmio nem sorteio. Rifas e sorteios precisam de autorização do Ministério da Fazenda e não podem ser feitos no app.</p></details>
+  <details class="faq"><summary>E os meus dados?</summary><p>Ficam protegidos e não são vendidos. O grupo vê só o primeiro nome de quem está na lista. Leia a <a href="/privacidade/">Política de privacidade</a>.</p></details>
 </section>
 
-<footer style="max-width: 1200px; margin: 0 auto; padding: 0 24px 48px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; font-size: 0.9rem; color: #57536A">
-<span><strong style="color: #16141F">Deixa Comigo</strong> · dx cmg</span>
-<span>[CONTATO] · Termos · Privacidade</span>
+<section class="larga" style="padding-bottom: 80px">
+  <div class="cta-final">
+    <h2 class="h-gigante" style="font-size: clamp(2.2rem, 5vw, 4.2rem)">Para de engolir seco.<br>Deixa comigo.</h2>
+    <a class="btn escuro" href="/app/#/cadastro" data-cta="final" style="min-height: 56px; padding: 0 28px">Criar conta grátis</a>
+  </div>
+</section>
+</main>
+
+<footer class="rodape-site">
+  <span><strong style="color: var(--ink)">Deixa Comigo</strong> · dx cmg</span>
+  <span><a href="/calculadoras/">Calculadoras</a> · <a href="/autonomos/">Autônomos</a> · <a href="/ajuda/">Ajuda</a> · <a href="/termos/">Termos</a> · <a href="/privacidade/">Privacidade</a></span>
 </footer>
-</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script src="/config.js"></script>
 <script src="/app.js"></script>
+<script type="module">
+  import { registrar } from '/js/eventos.js';
+  registrar('site_aberto', { pagina: 'inicio', origem: new URLSearchParams(location.search).get('utm_source') || null });
+  document.querySelectorAll('[data-cta]').forEach((a) => a.addEventListener('click', () => registrar('site_cta', { cta: a.dataset.cta })));
+</script>
 </body>
 </html>

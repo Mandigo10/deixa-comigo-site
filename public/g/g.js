@@ -1,5 +1,6 @@
 // Lista aberta: qualquer pessoa com o link vê as vagas e coloca o nome.
 import { sb } from '../js/sb.js';
+import { registrar } from '../js/eventos.js';
 import { esc, brl, primeiroNome, soDigitos, toast } from '../js/util.js';
 import { MODELOS, textoRegra, valorDividido, ocupacaoHTML } from '../js/combinados.js';
 
@@ -13,7 +14,7 @@ function casca(conteudo) {
     <main class="pilha">${conteudo}</main>
     <footer class="pilha-p" style="margin-top: 32px; text-align: center">
       <p class="muted pequeno">O Deixa Comigo organiza a lista e as datas. O pagamento vai direto para quem organizou, por Pix: o app não recebe nem guarda dinheiro.</p>
-      <p class="pequeno"><a href="/?utm_source=link_grupo&amp;utm_medium=rodape">Quer organizar a sua? Deixa comigo.</a></p>
+      <p class="pequeno"><a href="/?utm_source=link_grupo&amp;utm_medium=rodape">Quer organizar a sua? Deixa comigo.</a> · <a href="/termos/">Termos</a> · <a href="/privacidade/">Privacidade</a> · <a href="/ajuda/">Ajuda</a></p>
     </footer>
   </div>`;
 }
@@ -125,6 +126,7 @@ async function iniciar() {
       return;
     }
     guardar(r.token);
+    registrar('lista_entrada', { modelo: g.modelo });
     toast(r.ja_estava ? 'Você já estava na lista!' : (carona ? 'Vaga garantida!' : 'Você está na lista!'));
     location.href = `/topo/?t=${r.token}`;
   });

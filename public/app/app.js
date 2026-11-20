@@ -1,5 +1,6 @@
 // Deixa Comigo — app (versão 1)
 import { sb } from '../js/sb.js';
+import { registrar } from '../js/eventos.js';
 import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome } from '../js/util.js';
 import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
@@ -90,6 +91,9 @@ async function carregarPerfil() {
 const ROTAS = [
   [/^\/entrar$/, () => telaEntrar()],
   [/^\/cadastro$/, () => telaCadastro()],
+  [/^\/esqueci$/, () => telaEsqueci()],
+  [/^\/nova-senha$/, () => telaNovaSenha()],
+  [/^\/ajuda$/, () => telaAjuda()],
   [/^\/perfil$/, () => telaPerfil()],
   [/^\/nova$/, () => telaNova()],
   [/^\/nova\/(carona|emprestimo|racha)$/, (t) => telaFormulario(t)],
@@ -115,13 +119,13 @@ async function rotear() {
   try {
     let caminho = location.hash.replace(/^#/, '') || '/';
     if (/access_token|type=|error=/.test(caminho)) { history.replaceState(null, '', '/app/#/'); caminho = '/'; }
-    const publica = /^\/(entrar|cadastro)$/.test(caminho);
+    const publica = /^\/(entrar|cadastro|esqueci)$/.test(caminho);
     if (!estado.sessao) {
       if (!publica) { location.hash = '/entrar'; return; }
     } else {
       if (publica) { location.hash = '/'; return; }
       if (!estado.perfilCarregado) await carregarPerfil();
-      if ((!estado.perfil || !estado.perfil.chave_pix) && caminho !== '/perfil') { location.hash = '/perfil'; return; }
+      if ((!estado.perfil || !estado.perfil.chave_pix) && !['/perfil', '/nova-senha', '/ajuda'].includes(caminho)) { location.hash = '/perfil'; return; }
     }
     for (const [re, fn] of ROTAS) {
       const m = caminho.match(re);
@@ -154,8 +158,10 @@ function telaEntrar() {
       <div class="campo"><label for="senha">Senha</label><input id="senha" type="password" autocomplete="current-password" required></div>
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco" type="submit">Entrar</button>
+      <a href="#/esqueci" class="pequeno" style="align-self: center">Esqueci minha senha</a>
     </form>
-    <p class="muted" style="text-align: center">Ainda não tem conta? <a href="#/cadastro">Criar conta grátis</a></p>`, { nav: false }));
+    <p class="muted" style="text-align: center">Ainda não tem conta? <a href="#/cadastro">Criar conta grátis</a></p>
+    <p class="muted pequeno" style="text-align: center"><a href="/termos/">Termos de uso</a> · <a href="/privacidade/">Privacidade</a></p>`, { nav: false }));
   $('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('#f button[type=submit]');
@@ -176,10 +182,10 @@ function telaCadastro() {
       <div class="campo"><label for="nome">Seu nome</label><input id="nome" autocomplete="name" maxlength="80" required><span class="ajuda">É assim que você aparece para quem vai te pagar.</span></div>
       <div class="campo"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" required></div>
       <div class="campo"><label for="senha">Senha</label><input id="senha" type="password" autocomplete="new-password" minlength="6" required><span class="ajuda">Pelo menos 6 caracteres.</span></div>
+      <label class="check" style="align-items: flex-start"><input type="checkbox" id="aceite" style="margin-top: 2px"> <span>Li e aceito os <a href="/termos/" target="_blank" rel="noopener">Termos de uso</a> e a <a href="/privacidade/" target="_blank" rel="noopener">Política de privacidade</a>.</span></label>
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco" type="submit">Criar conta</button>
     </form>
-    <p class="muted pequeno" style="text-align: center">Ao criar a conta, você concorda com o uso dos seus dados só para o funcionamento do app.</p>
     <p class="muted" style="text-align: center">Já tem conta? <a href="#/entrar">Entrar</a></p>`, { nav: false }));
   $('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -188,14 +194,16 @@ function telaCadastro() {
     const senha = $('#senha').value;
     if (!nome) { $('#msg').textContent = 'Diga seu nome.'; return; }
     if (senha.length < 6) { $('#msg').textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
+    if (!$('#aceite').checked) { $('#msg').textContent = 'Para criar a conta, aceite os Termos de uso e a Política de privacidade.'; return; }
     const btn = $('#f button[type=submit]');
     btn.disabled = true; $('#msg').textContent = '';
     const { data, error } = await sb.auth.signUp({
       email, password: senha,
-      options: { data: { nome }, emailRedirectTo: `${location.origin}/app/` }
+      options: { data: { nome, aceite_termos: new Date().toISOString(), versao_termos: '2026-11' }, emailRedirectTo: `${location.origin}/app/` }
     });
     btn.disabled = false;
     if (error) { $('#msg').textContent = traduzErro(error); return; }
+    registrar('conta_criada');
     if (!data.session) {
       render(casca(`<div class="card pilha"><h2>Confira seu e-mail</h2><p>Enviamos um link de confirmação para <strong>${esc(email)}</strong>. Depois de confirmar, é só entrar.</p><a class="btn" href="#/entrar">Ir para o login</a></div>`, { nav: false }));
     }
@@ -242,6 +250,7 @@ function telaPerfil() {
     btn.disabled = false;
     if (error) { $('#msg').textContent = traduzErro(error); return; }
     estado.perfil = data;
+    registrar(primeiraVez ? 'perfil_criado' : 'perfil_editado');
     toast('Dados salvos!');
     go(primeiraVez ? '/nova' : '/conta');
   });
@@ -659,6 +668,7 @@ function telaFormCombinado(modelo) {
     }
     if (novo.valor_modo === 'dividir') await sb.rpc('recalcular_valores', { p_combinado: novo.id });
     await sb.rpc('gerar_cobrancas_v2');
+    registrar('combinado_criado', { modelo, aberta: !!novo.entrada_aberta, dividir: novo.valor_modo === 'dividir' });
     toast(novo.entrada_aberta ? 'Lista aberta! Agora mande o link no grupo.' : 'Combinado criado! Agora mande para cada um topar.');
     go(`/k/${novo.id}`);
   });
@@ -812,6 +822,7 @@ async function telaCombinado(id) {
     else if (acao === 'whats') {
       window.open(linkWhatsApp(m.telefone, $(`#m-${m.id}`).value), '_blank', 'noopener');
       await marcarConvite(m);
+      registrar('convite_enviado');
       toast('Pronto! Agora é só apertar enviar no WhatsApp.');
     } else if (acao === 'copiarmsg') {
       const ok = await copiar($(`#m-${m.id}`).value);
@@ -828,6 +839,7 @@ async function telaCombinado(id) {
     } else if (acao === 'divulgar') {
       const texto = gerarDivulgacao({ modelo: k.modelo, titulo: k.titulo, regra: textoRegra(k), vagas: k.vagas, dividir: k.valor_modo === 'dividir', link: linkLista(), plano: estado.perfil.plano });
       window.open(linkWhatsApp('', texto), '_blank', 'noopener');
+      registrar('lista_divulgada', { modelo: k.modelo });
     } else if (acao === 'copiarlista') {
       const ok = await copiar(linkLista());
       toast(ok ? 'Link da lista copiado.' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
@@ -1050,6 +1062,7 @@ function telaFormulario(tipo) {
       await sb.from('cobrancas').delete().eq('id', c.id);
       btn.disabled = false; btn.textContent = 'Criar cobrança'; msg.textContent = traduzErro(e2); return;
     }
+    registrar('cobranca_criada', { tipo });
     toast('Cobrança criada! Agora é só enviar.');
     go(`/c/${c.id}`);
   });
@@ -1168,6 +1181,7 @@ async function telaCobranca(id) {
       const texto = $(`#m-${p.id}`).value;
       window.open(linkWhatsApp(p.telefone, texto), '_blank', 'noopener');
       await registrarEnvio(p);
+      registrar('cobranca_enviada', { via: 'whatsapp' });
       toast('Pronto! Agora é só apertar enviar no WhatsApp.');
     } else if (acao === 'copiarmsg') {
       const ok = await copiar($(`#m-${p.id}`).value);
@@ -1176,7 +1190,7 @@ async function telaCobranca(id) {
       const ok = await copiar(linkPublico(p.token));
       toast(ok ? 'Link de pagamento copiado.' : 'Não consegui copiar o link.', ok ? 'ok' : 'erro');
     } else if (acao === 'pago') {
-      if (await atualizarP(p, { status: 'pago', valor_pago: p.valor, pago_em: new Date().toISOString() })) desenhar();
+      if (await atualizarP(p, { status: 'pago', valor_pago: p.valor, pago_em: new Date().toISOString() })) { registrar('pagamento_confirmado', { tipo: tipoDe(c) }); desenhar(); }
     } else if (acao === 'naopago' || acao === 'desfazer') {
       if (await atualizarP(p, { status: 'pendente', valor_pago: 0, pago_em: null, avisou_pago_em: null })) desenhar();
     } else if (acao === 'concluir' || acao === 'reabrir' || acao === 'cancelar') {
@@ -1259,6 +1273,7 @@ function telaFormVenda() {
     const { error: e2 } = await sb.from('combinado_membros').insert({ combinado_id: novo.id, nome: cliente, telefone: soDigitos($('#tel').value) || null });
     if (e2) { await sb.from('combinados').delete().eq('id', novo.id); btn.disabled = false; btn.textContent = 'Registrar venda'; msg.textContent = traduzErro(e2); return; }
     await sb.rpc('gerar_cobrancas_v2');
+    registrar('venda_criada', { parcelas: r.parcelas });
     toast('Venda registrada! Mande o carnê para a cliente confirmar.');
     go(`/k/${novo.id}`);
   });
@@ -1337,6 +1352,7 @@ function telaFormCartela() {
     }).select().single();
     btn.disabled = false;
     if (error) { msg.textContent = traduzErro(error); return; }
+    registrar('cartela_criada', { modo: r.modo, quantidade: r.quantidade });
     toast('Cartela criada! Mande o link no grupo.');
     go(`/cartela/${nova.id}`);
   });
@@ -1523,7 +1539,9 @@ function telaCalculadora(id) {
   render(casca(`
     <div class="pilha-p"><h1>${esc(calc.nome)}</h1><p class="muted">${esc(calc.resumo)}</p></div>
     <div id="calc-area"></div>`, { voltar: '/calc', ativo: 'calc' }));
+  registrar('calculadora_aberta', { calc: calc.id, logado: true });
   montarCalculadora($('#calc-area'), calc, (dados) => {
+    registrar('calculadora_combinar', { calc: calc.id });
     guardarPreenchimento(dados);
     go(`/combinar/${dados.modelo}`);
   });
@@ -1651,6 +1669,77 @@ async function telaResumo() {
   `, { ativo: 'resumo' }));
 }
 
+// ---------- senha ----------
+function telaEsqueci() {
+  render(casca(`
+    <div class="pilha-p" style="padding-top: 16px"><h1>Esqueci minha senha</h1><p class="muted">Digite seu e-mail. Se ele tiver conta, enviamos um link para criar uma senha nova.</p></div>
+    <form id="f" class="card pilha" novalidate>
+      <div class="campo"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" required></div>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco" type="submit">Enviar link</button>
+    </form>
+    <p class="muted" style="text-align: center"><a href="#/entrar">Voltar para o login</a></p>`, { nav: false }));
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('#email').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('#msg').textContent = 'Confira o e-mail.'; return; }
+    const btn = $('#f button[type=submit]'); btn.disabled = true;
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/app/` });
+    btn.disabled = false;
+    if (error && /rate limit|too many/i.test(error.message)) { $('#msg').textContent = traduzErro(error); return; }
+    registrar('senha_pedida');
+    render(casca(`<div class="card pilha"><h2>Confira seu e-mail</h2><p>Se <strong>${esc(email)}</strong> tiver conta, o link para criar uma senha nova chega em alguns minutos. Olhe também o spam.</p><a class="btn" href="#/entrar">Voltar para o login</a></div>`, { nav: false }));
+  });
+}
+
+function telaNovaSenha() {
+  render(casca(`
+    <div class="pilha-p" style="padding-top: 16px"><h1>Crie sua senha nova</h1></div>
+    <form id="f" class="card pilha" novalidate>
+      <div class="campo"><label for="s1">Senha nova</label><input id="s1" type="password" autocomplete="new-password" minlength="6"></div>
+      <div class="campo"><label for="s2">Repita a senha</label><input id="s2" type="password" autocomplete="new-password" minlength="6"></div>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco" type="submit">Salvar senha</button>
+    </form>`, { nav: false }));
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const s1 = $('#s1').value; const s2 = $('#s2').value;
+    if (s1.length < 6) { $('#msg').textContent = 'A senha precisa ter pelo menos 6 caracteres.'; return; }
+    if (s1 !== s2) { $('#msg').textContent = 'As duas senhas não são iguais.'; return; }
+    const btn = $('#f button[type=submit]'); btn.disabled = true;
+    const { error } = await sb.auth.updateUser({ password: s1 });
+    btn.disabled = false;
+    if (error) { $('#msg').textContent = traduzErro(error); return; }
+    registrar('senha_trocada');
+    toast('Senha nova salva!');
+    go('/');
+  });
+}
+
+// ---------- ajuda / reportar problema ----------
+function telaAjuda() {
+  render(casca(`
+    <div class="pilha-p"><h1>Ajuda</h1><p class="muted">Algo não funcionou, ficou confuso ou você tem uma ideia? Conta pra gente. Cada mensagem é lida.</p></div>
+    <form id="f" class="card pilha" novalidate>
+      <div class="campo"><label for="msgtxt">O que aconteceu?</label><textarea id="msgtxt" maxlength="2000" placeholder="Ex.: tentei criar uma vaquinha e o botão não fez nada"></textarea></div>
+      <div class="campo"><label for="contato">Como falamos com você (opcional)</label><input id="contato" maxlength="120" value="${esc(estado.sessao ? estado.sessao.user.email : '')}"></div>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco" type="submit">Enviar</button>
+    </form>
+    <p class="muted pequeno" style="text-align: center"><a href="/termos/">Termos de uso</a> · <a href="/privacidade/">Privacidade</a></p>`, { ativo: 'conta', voltar: '/conta' }));
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const mensagem = $('#msgtxt').value.trim();
+    if (mensagem.length < 3) { $('#msg').textContent = 'Escreva o que aconteceu.'; return; }
+    const btn = $('#f button[type=submit]'); btn.disabled = true;
+    const { error } = await sb.from('feedbacks').insert({ pagina: `app ${navigator.userAgent}`.slice(0, 200), mensagem, contato: $('#contato').value.trim() || null });
+    btn.disabled = false;
+    if (error) { $('#msg').textContent = traduzErro(error); return; }
+    toast('Recebido! Obrigado por avisar.');
+    go('/conta');
+  });
+}
+
 // ---------- conta ----------
 function telaConta() {
   const p = estado.perfil;
@@ -1667,9 +1756,23 @@ function telaConta() {
       <div class="linha-flex entre"><h2>Plano ${p.plano === 'gratis' ? 'Grátis' : p.plano === 'plus' ? 'Plus' : 'Autônomo'}</h2><span class="tag neutra">Atual</span></div>
       <p class="muted">${p.plano === 'gratis' ? 'Suas mensagens saem com "enviado por dx cmg". O Plus, sem marca e com lembretes ilimitados, chega em breve.' : 'Obrigado por apoiar o Deixa Comigo!'}</p>
     </div>
+    <div class="card pilha-p">
+      <a class="btn sec" href="#/ajuda">Reportar problema ou dar ideia</a>
+      <p class="pequeno" style="text-align: center"><a href="/termos/">Termos de uso</a> · <a href="/privacidade/">Política de privacidade</a></p>
+    </div>
     <button type="button" class="btn sec bloco" id="sair">Sair da conta</button>
+    <button type="button" class="btn perigo bloco" id="apagar-conta">Apagar minha conta</button>
     <p class="muted pequeno" style="text-align: center">Deixa Comigo · versão 1</p>
   `, { ativo: 'conta' }));
+  $('#apagar-conta').addEventListener('click', async () => {
+    const conf = window.prompt('Isso apaga sua conta e TUDO que você criou (combinados, cobranças, cartelas, vendas). Os links que você mandou param de funcionar. Não dá para desfazer.\n\nPara confirmar, digite APAGAR:');
+    if (!conf || conf.trim().toUpperCase() !== 'APAGAR') { toast('Nada foi apagado.'); return; }
+    const { error } = await sb.functions.invoke('apagar-conta', { method: 'POST' });
+    if (error) { toast('Não consegui apagar agora. Tente de novo ou use "Reportar problema".', 'erro'); return; }
+    await sb.auth.signOut();
+    estado.perfil = null; estado.perfilCarregado = false; estado.sessao = null;
+    render(casca('<div class="card pilha"><h2>Conta apagada</h2><p>Seus dados foram removidos. Obrigado por ter usado o Deixa Comigo.</p><a class="btn" href="/">Ir para o site</a></div>', { nav: false }));
+  });
   $('#sair').addEventListener('click', async () => {
     await sb.auth.signOut();
     estado.perfil = null; estado.perfilCarregado = false; estado.sessao = null;
@@ -1681,10 +1784,13 @@ function telaConta() {
 (async function iniciar() {
   const { data } = await sb.auth.getSession();
   estado.sessao = data.session;
+  if (window.__dxcmgRecuperacao && data.session) history.replaceState(null, '', '/app/#/nova-senha');
+  registrar('app_aberto', { logado: !!data.session });
   sb.auth.onAuthStateChange((evento, sessao) => {
     const antes = !!estado.sessao;
     estado.sessao = sessao;
     if (evento === 'SIGNED_OUT') { estado.perfil = null; estado.perfilCarregado = false; }
+    if (evento === 'PASSWORD_RECOVERY') { location.hash = '/nova-senha'; return; }
     if (antes !== !!sessao) setTimeout(rotear, 0);
   });
   window.addEventListener('hashchange', rotear);

@@ -148,3 +148,8 @@ a.item:hover { border-color: var(--ink); color: var(--ink); }
 .legenda { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.82rem; color: var(--ink-2); }
 .legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .legenda i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; border: 1.5px solid #BDB8CF; }
+.texto-legal { line-height: 1.65; }
+.texto-legal h2 { font-size: 1.2rem; margin-top: 28px; margin-bottom: 8px; }
+.texto-legal p, .texto-legal li { color: var(--ink-2); margin: 0 0 10px; }
+.texto-legal ul { padding-left: 20px; margin: 0 0 10px; }
+.texto-legal strong { color: var(--ink); }

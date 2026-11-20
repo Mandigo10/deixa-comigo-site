@@ -1,5 +1,6 @@
 // Cartela pública: escolher números/nomes (?t=) e ver os seus para pagar (?c=).
 import { sb } from '../js/sb.js';
+import { registrar } from '../js/eventos.js';
 import { esc, brl, dataBR, primeiroNome, soDigitos, toast, copiar } from '../js/util.js';
 import { gerarPix } from '../js/pix.js';
 import { rotulo, valorDe, textoValor, AVISO_LEGAL } from '../js/cartelas.js';
@@ -15,7 +16,7 @@ function casca(conteudo) {
     <main class="pilha">${conteudo}</main>
     <footer class="pilha-p" style="margin-top: 32px; text-align: center">
       <p class="muted pequeno">O pagamento vai direto para quem organizou, por Pix: o app não recebe nem guarda dinheiro. ${esc(AVISO_LEGAL)}</p>
-      <p class="pequeno"><a href="/?utm_source=link_cartela&amp;utm_medium=rodape">Também quer organizar a sua? Deixa comigo.</a></p>
+      <p class="pequeno"><a href="/?utm_source=link_cartela&amp;utm_medium=rodape">Também quer organizar a sua? Deixa comigo.</a> · <a href="/termos/">Termos</a> · <a href="/privacidade/">Privacidade</a> · <a href="/ajuda/">Ajuda</a></p>
     </footer>
   </div>`;
 }
@@ -91,6 +92,7 @@ async function escolher() {
       return;
     }
     guardar(`dxcmg_cartela_${tCartela}`, r.token);
+    registrar('cartela_reserva', { qtd: escolhidos.size });
     guardar('dxcmg_nome', nome);
     if (tel) guardar('dxcmg_tel', tel);
     location.href = `?c=${r.token}`;
@@ -164,6 +166,7 @@ async function meus() {
     bp.disabled = true;
     const { error: e } = await sb.rpc('avisar_pagamento_cartela', { p_token: tComprador });
     if (e) { bp.disabled = false; toast('Não deu certo agora.', 'erro'); return; }
+    registrar('paguei', { tipo: 'cartela' });
     bp.closest('.card').innerHTML = `<h2>Obrigado!</h2><p class="muted">Avisamos ${esc(primeiroNome(d.organizador))}. Agora é só aguardar a confirmação.</p>`;
   });
   if (pix && !avisou) {
