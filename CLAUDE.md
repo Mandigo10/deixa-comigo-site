@@ -58,3 +58,9 @@ Plano combinado (ainda não feito):
 - Atualização ao vivo: Supabase Realtime (ou nova consulta a cada poucos segundos) na página do pagador e no app do organizador.
 - Manter o Pix direto (sem Mercado Pago) como opção para quem não conectar a conta.
 - Antes de construir: conferir na documentação atual do Mercado Pago o OAuth, os webhooks e as tarifas do Pix, e decidir com o dono se é recurso do plano pago.
+
+### Ideia do dono (20/11/2026): dinheiro reservado até fechar a lista
+O dono quer que o dinheiro pago fique retido (nem o organizador mexe) e só seja liberado de uma vez quando a lista enche ou quando ele encerra; se cancelar, devolve. Conclusão da conversa:
+- O app **não pode** guardar o dinheiro na conta dele (isso é serviço de pagamento regulado pelo Banco Central, Lei 12.865/2013).
+- Caminho viável: provedor com custódia para subcontas, por exemplo a **Conta Escrow do Asaas** (retém o valor até a liberação manual pela API ou até o prazo configurado; mensalidade por subconta). Cada organizador teria uma subconta (cadastro com documentos).
+- A conferir antes: se o provedor aceita bolão/loteria, se exige CNPJ da plataforma, tarifas, prazo máximo de retenção, como devolver. Comparar com o Mercado Pago.
