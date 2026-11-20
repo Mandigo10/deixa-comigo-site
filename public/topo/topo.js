@@ -63,7 +63,8 @@ async function iniciar() {
   const topou = !!k.aceito_em;
   const encerrado = k.status === 'encerrado';
   const lista = k.vagas || k.aberto || k.valor_modo === 'dividir';
-  const linkGrupo = k.entrada_token ? `${location.origin}/g/?t=${k.entrada_token}` : '';
+  const temVaga = !k.limite || Number(k.pessoas) < Number(k.limite);
+  const linkGrupo = k.entrada_token && temVaga ? `${location.origin}/g/?t=${k.entrada_token}` : '';
   const aguardandoFechar = k.regra === 'unico' && k.valor_modo === 'dividir' && k.aberto;
 
   app.innerHTML = casca(`
