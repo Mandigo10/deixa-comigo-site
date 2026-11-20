@@ -31,6 +31,13 @@ function extrato(d, c) {
     (det.gastos || []).forEach((g) => linhas.push([g.descricao, brl(g.valor)]));
     linhas.push(['Total', brl(det.total_gastos)]);
     linhas.push(['Dividido entre', `${det.pessoas_divisao} pessoas`]);
+  } else if (det.meta) {
+    linhas.push(['Valor total da vaquinha', brl(det.meta)]);
+    linhas.push(['Dividido entre', `${det.pessoas_divisao} pessoas`]);
+    if (c.descricao) linhas.push(['Para', c.descricao]);
+  } else if (det.total_por_pessoa) {
+    linhas.push(['Total da viagem por pessoa', brl(det.total_por_pessoa)]);
+    if (c.descricao) linhas.push(['Inclui', c.descricao]);
   } else if (c.descricao) {
     linhas.push(['Observação', c.descricao]);
   }
@@ -45,7 +52,7 @@ async function iniciar() {
     app.innerHTML = casca('<div class="card pilha"><h1>Link inválido</h1><p class="muted">Confira se o link foi copiado inteiro, ou peça um novo para quem te cobrou.</p></div>');
     return;
   }
-  const { data: c, error } = await sb.rpc('cobranca_publica', { p_token: token });
+  const { data: c, error } = await sb.rpc('cobranca_publica_v2', { p_token: token });
   if (error || !c) {
     app.innerHTML = casca('<div class="card pilha"><h1>Cobrança não encontrada</h1><p class="muted">Ela pode ter sido cancelada. Fale com quem te enviou o link.</p></div>');
     return;
@@ -73,6 +80,11 @@ async function iniciar() {
       <p class="numero" style="font-size: 2.4rem; color: var(--lima)">${brl(devido)}</p>
       ${c.vencimento ? `<p class="muted">Até ${dataBR(c.vencimento)}</p>` : ''}
     </div>
+    ${c.combinado ? `<div class="card pilha-p" style="border-color: var(--ink)">
+      <p><strong>Conforme combinado.</strong> ${c.aceito_em ? `Você topou em ${new Date(c.aceito_em).toLocaleDateString('pt-BR')}.` : 'Esta é uma cobrança do combinado do grupo.'}</p>
+      ${Number(c.pessoas) > 1 ? `<p class="muted pequeno">${c.pagos} de ${c.pessoas} pessoas já pagaram${c.tipo === 'vaquinha' ? ` · ${brl(c.arrecadado)} de ${brl(c.total)} arrecadados` : ''}.</p>
+      <div class="barra" aria-hidden="true"><span style="width: ${Math.round((Number(c.pagos) / Number(c.pessoas)) * 100)}%"></span></div>` : ''}
+    </div>` : ''}
     ${extrato(devido, c)}
     ${avisou ? `<div class="card pilha-p" style="border-color: var(--roxo)"><h2>Você já avisou que pagou</h2><p class="muted">${esc(credor)} vai conferir e confirmar. Não precisa fazer mais nada.</p></div>` : ''}
     ${pix ? `<section class="card pilha" aria-labelledby="t-pix">

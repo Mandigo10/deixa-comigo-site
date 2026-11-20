@@ -15,7 +15,19 @@ export function gerarMensagem({ tipo, tom, momento, nome, valor, titulo, vencime
   const t = `"${titulo}"`;
   let msg = '';
 
-  if (momento === 'lembrete') {
+  if (momento === 'combinado') {
+    if (tipo === 'vaquinha') {
+      if (tom === 'leve') msg = `Oi, ${n}! Vaquinha de ${t}: cada um entra com ${valor}${ate}. Assim ninguém precisa adiantar nada. O Pix está aqui: ${link}`;
+      else if (tom === 'neutro') msg = `Oi, ${n}. Vaquinha de ${t}: ${valor} por pessoa${vencimento ? `, até ${vencimento}` : ''}. Pix: ${link}`;
+      else msg = `Oi, ${n}. Para a vaquinha de ${t} fechar, falta a sua parte: ${valor}${ate}. Pix: ${link}`;
+    } else if (tom === 'leve') {
+      msg = `Oi, ${n}! Chegou a data do nosso combinado (${titulo}): ${valor}${ate}. O Pix está aqui: ${link} Valeu!`;
+    } else if (tom === 'neutro') {
+      msg = `Oi, ${n}. Conforme combinado, ${titulo}: ${valor}${vencimento ? `, com vencimento em ${vencimento}` : ''}. Pix: ${link}`;
+    } else {
+      msg = `Oi, ${n}. Conforme o combinado, ${titulo} vence${vencimento ? ` em ${vencimento}` : ' agora'}: ${valor}. O Pix está aqui: ${link}`;
+    }
+  } else if (momento === 'lembrete') {
     if (tom === 'leve') {
       msg = `Oi, ${n}! Só um lembrete amigo: ${t} (${valor}) ainda está em aberto. O Pix continua aqui, pra facilitar: ${link}`;
     } else if (tom === 'neutro') {
@@ -49,8 +61,24 @@ export function gerarMensagem({ tipo, tom, momento, nome, valor, titulo, vencime
     }
   }
 
-  if (!plano || plano === 'gratis') {
-    msg += '\n\nenviado por dx cmg · Deixa Comigo';
-  }
+  return assinar(msg, plano);
+}
+
+function assinar(msg, plano) {
+  if (!plano || plano === 'gratis') return msg + '\n\nenviado por dx cmg · Deixa Comigo';
   return msg;
+}
+
+// Convite para "topar" um combinado
+export function gerarConvite({ tom, nome, titulo, regra, link, plano }) {
+  const n = primeiroNome(nome);
+  let msg;
+  if (tom === 'leve') {
+    msg = `Oi, ${n}! Pra gente nunca precisar ficar falando de dinheiro depois, coloquei nosso combinado no Deixa Comigo: ${titulo}, ${regra}. Dá uma olhada e, se estiver ok, toca em "Topo": ${link}`;
+  } else if (tom === 'neutro') {
+    msg = `Oi, ${n}. Organizei "${titulo}" no Deixa Comigo: ${regra}. As regras estão neste link; se concordar, toque em "Topo": ${link}`;
+  } else {
+    msg = `Oi, ${n}. Sobre "${titulo}": ${regra}. Confirme que está de acordo neste link: ${link}`;
+  }
+  return assinar(msg, plano);
 }

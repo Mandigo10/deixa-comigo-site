@@ -83,4 +83,7 @@ export async function copiar(texto) {
   }
 }
 
-export const NOMES_TIPO = { carona: 'Carona', emprestimo: 'Empréstimo', racha: 'Racha' };
+export const NOMES_TIPO = {
+  carona: 'Carona', emprestimo: 'Empréstimo', racha: 'Racha',
+  vaquinha: 'Vaquinha', viagem: 'Viagem', mensalidade: 'Mensalidade'
+};

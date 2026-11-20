@@ -1,8 +1,9 @@
 // Deixa Comigo — app (versão 1)
 import { sb } from '../js/sb.js';
 import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome } from '../js/util.js';
-import { gerarMensagem, TONS } from '../js/mensagens.js';
+import { gerarMensagem, gerarConvite, TONS } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
+import { MODELOS, vencimentoCiclo, textoRegra } from '../js/combinados.js';
 
 const app = document.getElementById('app');
 const estado = { sessao: null, perfil: null, perfilCarregado: false };
@@ -13,12 +14,16 @@ const ICONE = {
   carona: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 16v-3l2-5h14l2 5v3z"/><path d="M3 13h18"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/></svg>',
   emprestimo: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3"/><path d="M20 16H6l3 3"/></svg>',
   racha: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 6"/></svg>',
+  vaquinha: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 10c0-3.3-3.1-6-7-6S5 6.7 5 10c0 2 1.1 3.7 2.8 4.8L7 19h3l.5-1.6c.5.1 1 .1 1.5.1s1 0 1.5-.1L14 19h3l-.8-4.2c1.1-.7 2-1.7 2.4-2.8H21v-3h-2.2"/><path d="M10 4.5l2-2 2 2"/></svg>',
+  viagem: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5L3 11l1.5-1.5 7.5 1L16.5 6a2 2 0 0 1 3 3L15 13.5l1 7.5-1.5 1.5-2.5-7.5-3 3V21l-1.5 1-1.5-3.5L2.5 17l1-1.5h3z"/></svg>',
+  mensalidade: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h3"/></svg>',
   inicio: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
   conta: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   mais: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   voltar: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
 };
-const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego' };
+const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima' };
+function tipoDe(c) { return c.modelo || c.tipo; }
 const NOME_STATUS = { pendente: 'Pendente', avisou_pago: 'Avisou que pagou', pago: 'Pago' };
 
 // ---------- estrutura ----------
@@ -76,6 +81,8 @@ const ROTAS = [
   [/^\/perfil$/, () => telaPerfil()],
   [/^\/nova$/, () => telaNova()],
   [/^\/nova\/(carona|emprestimo|racha)$/, (t) => telaFormulario(t)],
+  [/^\/combinar\/(carona|vaquinha|viagem|mensalidade)$/, (m) => telaFormCombinado(m)],
+  [/^\/k\/([0-9a-f-]{36})$/, (id) => telaCombinado(id)],
   [/^\/c\/([0-9a-f-]{36})$/, (id) => telaCobranca(id)],
   [/^\/conta$/, () => telaConta()],
   [/^\/?$/, () => telaPainel()]
@@ -237,11 +244,22 @@ function restante(p) { return round2(Math.max(0, Number(p.valor) - Number(p.valo
 
 async function telaPainel() {
   render(casca('<p class="carregando">Carregando suas cobranças…</p>', { ativo: 'inicio' }));
-  const { data, error } = await sb.from('cobrancas').select('*, participantes(*)').neq('status', 'cancelada').order('criado_em', { ascending: false });
-  if (error) throw error;
-  const cobrancas = data || [];
+  await sb.rpc('gerar_cobrancas');
+  const [resC, resK] = await Promise.all([
+    sb.from('cobrancas').select('*, participantes(*)').neq('status', 'cancelada').order('criado_em', { ascending: false }),
+    sb.from('combinados').select('*, combinado_membros(*)').neq('status', 'encerrado').order('criado_em', { ascending: false })
+  ]);
+  if (resC.error) throw resC.error;
+  if (resK.error) throw resK.error;
+  const cobrancas = resC.data || [];
+  const combinados = resK.data || [];
   let aReceber = 0; let recebido = 0;
   const tarefas = [];
+  combinados.filter((k) => k.status === 'ativo').forEach((k) => {
+    (k.combinado_membros || []).filter((m) => m.ativo && !m.convite_enviado_em).forEach((m) => {
+      tarefas.push({ href: `#/k/${k.id}`, titulo: k.titulo, txt: `Mandar o combinado para ${esc(primeiroNome(m.nome))} topar`, tag: 'Convidar' });
+    });
+  });
   cobrancas.forEach((c) => {
     (c.participantes || []).forEach((p) => {
       if (p.status === 'pago') recebido += Number(p.valor);
@@ -250,9 +268,10 @@ async function telaPainel() {
         if (c.status === 'aberta') aReceber += restante(p);
       }
       if (c.status !== 'aberta') return;
-      if (p.status === 'avisou_pago') tarefas.push({ c, txt: `${esc(primeiroNome(p.nome))} avisou que pagou ${brl(restante(p))}. Confira e confirme.`, tag: 'Confirmar' });
-      else if (p.status === 'pendente' && !p.enviado_em) tarefas.push({ c, txt: `Enviar a cobrança para ${esc(primeiroNome(p.nome))}`, tag: 'Enviar' });
-      else if (lembreteDevido(p, c)) tarefas.push({ c, txt: `Lembrar ${esc(primeiroNome(p.nome))} de ${brl(restante(p))}`, tag: 'Lembrar' });
+      const base = { href: `#/c/${c.id}`, titulo: c.titulo };
+      if (p.status === 'avisou_pago') tarefas.push({ ...base, txt: `${esc(primeiroNome(p.nome))} avisou que pagou ${brl(restante(p))}. Confira e confirme.`, tag: 'Confirmar' });
+      else if (p.status === 'pendente' && !p.enviado_em) tarefas.push({ ...base, txt: `Enviar a cobrança para ${esc(primeiroNome(p.nome))}`, tag: 'Enviar' });
+      else if (lembreteDevido(p, c)) tarefas.push({ ...base, txt: `Lembrar ${esc(primeiroNome(p.nome))} de ${brl(restante(p))}`, tag: 'Lembrar' });
     });
   });
   const abertas = cobrancas.filter((c) => c.status === 'aberta');
@@ -262,11 +281,20 @@ async function telaPainel() {
     const pagos = ps.filter((p) => p.status === 'pago').length;
     const pct = ps.length ? Math.round((pagos / ps.length) * 100) : 0;
     return `<li><a class="item" href="#/c/${c.id}">
-      <span class="icone ${COR_ICONE[c.tipo]}">${ICONE[c.tipo]}</span>
+      <span class="icone ${COR_ICONE[tipoDe(c)]}">${ICONE[tipoDe(c)]}</span>
       <span class="grow"><span class="titulo-item">${esc(c.titulo)}</span>
-        <span class="muted pequeno" style="display:block">${NOMES_TIPO[c.tipo]} · ${pagos} de ${ps.length} pago${ps.length === 1 ? '' : 's'}</span>
+        <span class="muted pequeno" style="display:block">${NOMES_TIPO[tipoDe(c)]}${c.vencimento ? ` · vence ${dataBR(c.vencimento)}` : ''} · ${pagos} de ${ps.length} pago${ps.length === 1 ? '' : 's'}</span>
         <span class="barra" aria-hidden="true"><span style="width: ${pct}%"></span></span></span>
       <strong>${brl(c.valor_total)}</strong></a></li>`;
+  };
+  const itemCombinado = (k) => {
+    const ms = (k.combinado_membros || []).filter((m) => m.ativo);
+    const toparam = ms.filter((m) => m.aceito_em).length;
+    return `<li><a class="item" href="#/k/${k.id}">
+      <span class="icone ${COR_ICONE[k.modelo]}">${ICONE[k.modelo]}</span>
+      <span class="grow"><span class="titulo-item">${esc(k.titulo)}</span>
+        <span class="muted pequeno" style="display:block">${esc(textoRegra(k))}</span>
+        <span class="muted pequeno" style="display:block">${toparam} de ${ms.length} toparam${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
   };
   const nome = primeiroNome(estado.perfil.nome);
   render(casca(`
@@ -276,26 +304,398 @@ async function telaPainel() {
       <div class="card"><p class="muted pequeno">Já recebido</p><p class="numero">${brl(recebido)}</p></div>
     </div>
     ${tarefas.length ? `<section class="pilha-p" aria-labelledby="t-hoje"><h2 id="t-hoje">Para fazer hoje</h2><ul class="lista">
-      ${tarefas.map((t) => `<li><a class="item" href="#/c/${t.c.id}"><span class="grow">${t.txt}<span class="muted pequeno" style="display:block">${esc(t.c.titulo)}</span></span><span class="tag ${t.tag === 'Confirmar' ? 'avisou_pago' : 'pendente'}">${t.tag}</span></a></li>`).join('')}
+      ${tarefas.map((t) => `<li><a class="item" href="${t.href}"><span class="grow">${t.txt}<span class="muted pequeno" style="display:block">${esc(t.titulo)}</span></span><span class="tag ${t.tag === 'Confirmar' ? 'avisou_pago' : t.tag === 'Convidar' ? 'neutra' : 'pendente'}">${t.tag}</span></a></li>`).join('')}
     </ul></section>` : ''}
-    <section class="pilha-p" aria-labelledby="t-abertas">
-      <div class="linha-flex entre"><h2 id="t-abertas">Em aberto</h2><a class="btn peq" href="#/nova">${ICONE.mais}Nova</a></div>
-      ${abertas.length ? `<ul class="lista">${abertas.map(itemCobranca).join('')}</ul>` : `
-        <div class="card vazio pilha-p"><p><strong>Nenhuma cobrança em aberto.</strong></p><p>Aquela carona, aquele empréstimo, aquele churrasco… deixa comigo.</p><a class="btn" href="#/nova" style="align-self: center">Criar a primeira cobrança</a></div>`}
+    <section class="pilha-p" aria-labelledby="t-comb">
+      <div class="linha-flex entre"><h2 id="t-comb">Combinados</h2><a class="btn peq" href="#/nova">${ICONE.mais}Novo</a></div>
+      ${combinados.length ? `<ul class="lista">${combinados.map(itemCombinado).join('')}</ul>` : `
+        <div class="card vazio pilha-p"><p><strong>Combine antes, cobre sem climão.</strong></p><p>Carona da semana, vaquinha do churrasco, viagem parcelada, pelada do mês: todo mundo topa as regras e o app cobra na data.</p><a class="btn" href="#/nova" style="align-self: center">Criar o primeiro combinado</a></div>`}
     </section>
+    ${abertas.length ? `<section class="pilha-p" aria-labelledby="t-abertas"><h2 id="t-abertas">Cobranças em aberto</h2>
+      <ul class="lista">${abertas.map(itemCobranca).join('')}</ul></section>` : ''}
     ${concluidas.length ? `<details class="pilha-p"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Concluídas (${concluidas.length})</summary><ul class="lista">${concluidas.map(itemCobranca).join('')}</ul></details>` : ''}
   `, { ativo: 'inicio' }));
 }
 
 // ---------- nova cobrança ----------
 function telaNova() {
-  const opcao = (tipo, titulo, txt) => `<a class="opcao" href="#/nova/${tipo}"><span class="icone ${COR_ICONE[tipo]}">${ICONE[tipo]}</span><span><span class="display" style="font-size: 1.3rem; font-weight: 800; display:block">${titulo}</span><span class="muted">${txt}</span></span></a>`;
+  const opcao = (href, tipo, titulo, txt) => `<a class="opcao" href="#${href}"><span class="icone ${COR_ICONE[tipo]}">${ICONE[tipo]}</span><span><span class="display" style="font-size: 1.25rem; font-weight: 800; display:block">${titulo}</span><span class="muted">${txt}</span></span></a>`;
   render(casca(`
-    <h1>O que vamos cobrar?</h1>
-    ${opcao('carona', 'Carona', 'Divide combustível e desgaste do carro entre os passageiros.')}
-    ${opcao('emprestimo', 'Empréstimo', 'Aquele dinheiro que você emprestou e ficou no "te passo".')}
-    ${opcao('racha', 'Racha', 'Churrasco, viagem, presente: cada um paga a sua parte.')}
+    <div class="pilha-p">
+      <h1>Combine antes</h1>
+      <p class="muted">Todo mundo topa as regras agora, e o app cobra sozinho na data. Ninguém precisa pedir nada depois.</p>
+    </div>
+    ${opcao('/combinar/carona', 'carona', 'Carona fixa', 'Valor por semana ou por mês para quem vai junto.')}
+    ${opcao('/combinar/vaquinha', 'vaquinha', 'Vaquinha', 'Churrasco, festa, presente: cada um paga antes, ninguém adianta nada.')}
+    ${opcao('/combinar/viagem', 'viagem', 'Viagem parcelada', 'O valor da viagem dividido em parcelas até a data.')}
+    ${opcao('/combinar/mensalidade', 'mensalidade', 'Mensalidade do grupo', 'Pelada, quadra, república, streaming dividido.')}
+    <div class="pilha-p" style="margin-top: 16px">
+      <h2>Cobrar o que já passou</h2>
+      <p class="muted">Para o que não foi combinado antes.</p>
+    </div>
+    ${opcao('/nova/carona', 'carona', 'Carona', 'Divide combustível e desgaste do carro entre os passageiros.')}
+    ${opcao('/nova/emprestimo', 'emprestimo', 'Empréstimo', 'Aquele dinheiro que ficou no "te passo".')}
+    ${opcao('/nova/racha', 'racha', 'Racha', 'Você pagou tudo e cada um te devolve a sua parte.')}
   `, { ativo: '' }));
+}
+
+// ---------- combinados ----------
+function proximoDia(diasAFrente) {
+  const d = new Date();
+  d.setDate(d.getDate() + diasAFrente);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+function telaFormCombinado(modelo) {
+  const f = { tom: 'leve', pessoas: [{ nome: '', telefone: '' }], valorEditado: false };
+  const textos = {
+    carona: { titulo: 'Combinar carona fixa', ph: 'Ex.: Carona para o trabalho' },
+    vaquinha: { titulo: 'Combinar vaquinha', ph: 'Ex.: Churrasco de fim de ano' },
+    viagem: { titulo: 'Combinar viagem parcelada', ph: 'Ex.: Viagem para a praia em julho' },
+    mensalidade: { titulo: 'Combinar mensalidade', ph: 'Ex.: Pelada de quinta' }
+  }[modelo];
+  const freqHTML = (padrao) => `
+    <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">Cobrar</span>
+      <div class="tons" role="radiogroup" aria-label="Frequência">
+        <label class="check"><input type="radio" name="freq" value="semanal" ${padrao === 'semanal' ? 'checked' : ''}> Toda semana</label>
+        <label class="check"><input type="radio" name="freq" value="mensal" ${padrao === 'mensal' ? 'checked' : ''}> Todo mês</label>
+      </div></div>`;
+  let especifico = '';
+  if (modelo === 'carona') {
+    especifico = `
+      ${freqHTML('semanal')}
+      <div class="campo"><label for="inicio">Primeira cobrança em</label><input id="inicio" type="date" min="${hojeISO()}" value="${proximoDia(7)}"></div>
+      <div class="campo"><label for="valor">Valor por pessoa, por <span id="rot-periodo">semana</span> (R$)</label><input id="valor" inputmode="decimal" placeholder="Ex.: 60,00"></div>
+      <details class="card" style="padding: 14px"><summary style="cursor:pointer; font-weight: 600; min-height: 44px; display:flex; align-items:center">Calcular pelo custo do carro</summary>
+        <div class="pilha" style="margin-top: 8px">
+          <div class="grade-2">
+            <div class="campo"><label for="km">Km por dia (ida e volta)</label><input id="km" inputmode="decimal" placeholder="Ex.: 36"></div>
+            <div class="campo"><label for="dias">Dias por <span class="rot-periodo2">semana</span></label><input id="dias" inputmode="numeric" value="5"></div>
+            <div class="campo"><label for="consumo">Consumo (km/l)</label><input id="consumo" inputmode="decimal" placeholder="Ex.: 11"></div>
+            <div class="campo"><label for="preco">Preço do litro (R$)</label><input id="preco" inputmode="decimal" placeholder="Ex.: 6,19"></div>
+          </div>
+          <div class="campo"><label for="desgaste">Desgaste por km (R$)</label><input id="desgaste" inputmode="decimal" value="0,15"><span class="ajuda">Pneu, revisão e óleo. Ajuste se quiser.</span></div>
+          <label class="check"><input type="checkbox" id="incluir" checked> Dividir também com o motorista (eu)</label>
+          <p id="calc-res" class="muted pequeno" aria-live="polite"></p>
+        </div>
+      </details>`;
+  } else if (modelo === 'vaquinha') {
+    especifico = `
+      <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">Como dividir</span>
+        <div class="tons" role="radiogroup" aria-label="Como dividir">
+          <label class="check"><input type="radio" name="modo" value="meta" checked> Tenho um valor total</label>
+          <label class="check"><input type="radio" name="modo" value="fixo"> Valor fixo por pessoa</label>
+        </div></div>
+      <div class="campo" id="bloco-meta"><label for="meta">Valor total da vaquinha (R$)</label><input id="meta" inputmode="decimal" placeholder="Ex.: 600,00"></div>
+      <label class="check" id="bloco-incluir"><input type="checkbox" id="incluir" checked> Eu também entro na divisão</label>
+      <div class="campo" id="bloco-fixo" hidden><label for="valor">Valor por pessoa (R$)</label><input id="valor" inputmode="decimal" placeholder="Ex.: 50,00"></div>
+      <div class="campo"><label for="prazo">Pagar até</label><input id="prazo" type="date" min="${hojeISO()}" value="${proximoDia(7)}"></div>
+      <div class="campo"><label for="descricao">Para que é (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: carne, bebida e carvão"></div>`;
+  } else if (modelo === 'viagem') {
+    especifico = `
+      <div class="grade-2">
+        <div class="campo"><label for="total">Valor total por pessoa (R$)</label><input id="total" inputmode="decimal" placeholder="Ex.: 1.200,00"></div>
+        <div class="campo"><label for="parcelas">Em quantas parcelas</label><input id="parcelas" inputmode="numeric" value="6"></div>
+      </div>
+      <div class="campo"><label for="inicio">Primeira parcela em</label><input id="inicio" type="date" min="${hojeISO()}" value="${proximoDia(7)}"><span class="ajuda">As próximas vencem no mesmo dia dos meses seguintes.</span></div>
+      <div class="campo"><label for="descricao">O que está incluído (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: casa, combustível e mercado"></div>`;
+  } else {
+    especifico = `
+      ${freqHTML('mensal')}
+      <div class="campo"><label for="valor">Valor por pessoa (R$)</label><input id="valor" inputmode="decimal" placeholder="Ex.: 40,00"></div>
+      <div class="campo"><label for="inicio">Primeira cobrança em</label><input id="inicio" type="date" min="${hojeISO()}" value="${proximoDia(7)}"></div>
+      <div class="campo"><label for="descricao">Observação (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: aluguel da quadra + bola"></div>`;
+  }
+
+  render(casca(`
+    <h1>${textos.titulo}</h1>
+    <form id="f" class="pilha" novalidate>
+      <div class="card pilha">
+        <div class="campo"><label for="titulo">Nome do combinado</label><input id="titulo" maxlength="60" placeholder="${textos.ph}"></div>
+        ${especifico}
+      </div>
+      <div class="card pilha">
+        <fieldset class="pilha-p" style="border: 0; padding: 0; margin: 0"><legend style="font-weight: 600; margin-bottom: 6px">Quem participa</legend>
+          <div id="pessoas" class="pilha-p">${linhasPessoasHTML(f.pessoas, 'Pessoa')}</div>
+          <button type="button" class="btn sec peq" id="add-pessoa" style="align-self: flex-start">${ICONE.mais}Adicionar pessoa</button>
+        </fieldset>
+      </div>
+      <div id="resumo" class="calc" aria-live="polite"></div>
+      <div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(f.tom)}</div>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco lima" type="submit">Criar combinado</button>
+    </form>`, { voltar: '/nova' }));
+
+  ligarTons('tom', (t) => { f.tom = t; });
+  const freqAtual = () => { const r = app.querySelector('input[name=freq]:checked'); return r ? r.value : 'mensal'; };
+  const pessoasValidas = () => f.pessoas.map((p) => ({ nome: p.nome.trim(), telefone: soDigitos(p.telefone) || null })).filter((p) => p.nome);
+
+  // Retorna o combinado montado (ou { erro })
+  const montar = () => {
+    const pessoas = pessoasValidas();
+    const n = Math.max(pessoas.length, 1);
+    const k = { modelo, tom: f.tom, detalhes: {} };
+    if (modelo === 'carona') {
+      k.regra = 'recorrente'; k.frequencia = freqAtual(); k.inicio = $('#inicio').value;
+      k.valor_por_pessoa = round2(parseValor($('#valor').value));
+      if (f.calc) k.detalhes = f.calc;
+    } else if (modelo === 'vaquinha') {
+      k.regra = 'unico'; k.prazo = $('#prazo').value; k.inicio = hojeISO();
+      const modo = app.querySelector('input[name=modo]:checked').value;
+      if (modo === 'meta') {
+        const meta = parseValor($('#meta').value);
+        const div = n + ($('#incluir').checked ? 1 : 0);
+        k.valor_por_pessoa = round2(meta / div);
+        k.detalhes = { meta: round2(meta), pessoas_divisao: div, eu_incluido: $('#incluir').checked };
+      } else {
+        k.valor_por_pessoa = round2(parseValor($('#valor').value));
+      }
+    } else if (modelo === 'viagem') {
+      const total = parseValor($('#total').value);
+      const parcelas = Math.round(parseValor($('#parcelas').value));
+      k.regra = 'recorrente'; k.frequencia = 'mensal'; k.inicio = $('#inicio').value; k.parcelas = parcelas;
+      k.valor_por_pessoa = round2(total / parcelas);
+      k.detalhes = { total_por_pessoa: round2(total) };
+    } else {
+      k.regra = 'recorrente'; k.frequencia = freqAtual(); k.inicio = $('#inicio').value;
+      k.valor_por_pessoa = round2(parseValor($('#valor').value));
+    }
+    const d = $('#descricao');
+    k.descricao = d && d.value.trim() ? d.value.trim() : null;
+    return { k, pessoas };
+  };
+
+  const calcularCarona = () => {
+    if (modelo !== 'carona') return;
+    const km = parseValor($('#km').value), dias = parseValor($('#dias').value), consumo = parseValor($('#consumo').value), preco = parseValor($('#preco').value);
+    const desg = parseValor($('#desgaste').value || '0');
+    const periodo = freqAtual() === 'semanal' ? 'semana' : 'mês';
+    $('#rot-periodo').textContent = periodo;
+    $$('.rot-periodo2').forEach((el) => { el.textContent = periodo; });
+    if (!(km > 0 && dias > 0 && consumo > 0 && preco > 0) || !(desg >= 0)) { $('#calc-res').textContent = 'Preencha km, dias, consumo e preço para calcular.'; f.calc = null; return; }
+    const kmTotal = km * dias;
+    const combustivel = round2((kmTotal / consumo) * preco);
+    const desgaste = round2(kmTotal * desg);
+    const total = round2(combustivel + desgaste);
+    const div = Math.max(pessoasValidas().length, 1) + ($('#incluir').checked ? 1 : 0);
+    const por = round2(total / div);
+    f.calc = { km_dia: km, dias, consumo, preco_litro: preco, desgaste_km: desg, km_total: round2(kmTotal), combustivel, desgaste, custo_total: total, pessoas_divisao: div, motorista_incluido: $('#incluir').checked, periodo };
+    $('#calc-res').textContent = `Custo por ${periodo}: ${brl(total)} (combustível ${brl(combustivel)} + desgaste ${brl(desgaste)}), dividido por ${div}: ${brl(por)} por pessoa.`;
+    if (!f.valorEditado) $('#valor').value = por.toFixed(2).replace('.', ',');
+  };
+
+  const atualizarResumo = () => {
+    calcularCarona();
+    if (modelo === 'vaquinha') {
+      const modo = app.querySelector('input[name=modo]:checked').value;
+      $('#bloco-meta').hidden = modo !== 'meta';
+      $('#bloco-incluir').hidden = modo !== 'meta';
+      $('#bloco-fixo').hidden = modo !== 'fixo';
+    }
+    const { k, pessoas } = montar();
+    const ok = k.valor_por_pessoa > 0 && (k.regra === 'unico' ? !!k.prazo : !!k.inicio) && (modelo !== 'viagem' || k.parcelas >= 1);
+    if (!ok) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha os valores para ver o resumo do combinado.</span>'; return; }
+    const linhas = [['Regra', textoRegra(k)], ['Participantes', String(pessoas.length)]];
+    if (k.regra === 'recorrente' && !k.parcelas) linhas.push([k.frequencia === 'semanal' ? 'Você recebe por semana' : 'Você recebe por mês', brl(k.valor_por_pessoa * pessoas.length)]);
+    else linhas.push(['Total a receber', brl(k.valor_por_pessoa * pessoas.length * (k.parcelas || 1))]);
+    $('#resumo').innerHTML = `${linhas.slice(0, -1).map(([a, b]) => `<div class="lin"><span>${a}</span><span style="text-align:right">${esc(b)}</span></div>`).join('')}<div class="lin total"><span>${linhas[linhas.length - 1][0]}</span><span>${linhas[linhas.length - 1][1]}</span></div>`;
+  };
+
+  $('#f').addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.dataset.lista) f.pessoas[Number(el.dataset.i)][el.dataset.k] = el.value;
+    if (el.id === 'valor') f.valorEditado = !!el.value;
+    atualizarResumo();
+  });
+  $('#f').addEventListener('change', atualizarResumo);
+  $('#f').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-remover]');
+    if (!b) return;
+    f.pessoas.splice(Number(b.dataset.i), 1);
+    $('#pessoas').innerHTML = linhasPessoasHTML(f.pessoas, 'Pessoa');
+    atualizarResumo();
+  });
+  $('#add-pessoa').addEventListener('click', () => {
+    f.pessoas.push({ nome: '', telefone: '' });
+    $('#pessoas').innerHTML = linhasPessoasHTML(f.pessoas, 'Pessoa');
+    const el = $(`#pn${f.pessoas.length - 1}`); if (el) el.focus();
+    atualizarResumo();
+  });
+  atualizarResumo();
+
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('#msg');
+    msg.textContent = '';
+    const titulo = $('#titulo').value.trim();
+    const { k, pessoas } = montar();
+    if (!titulo) { msg.textContent = 'Dê um nome para o combinado.'; return; }
+    if (!pessoas.length) { msg.textContent = 'Adicione pelo menos uma pessoa.'; return; }
+    if (modelo === 'viagem' && !(k.parcelas >= 1 && k.parcelas <= 60)) { msg.textContent = 'Informe de 1 a 60 parcelas.'; return; }
+    if (!(k.valor_por_pessoa > 0)) { msg.textContent = 'Informe o valor.'; return; }
+    if (k.regra === 'unico' ? !k.prazo : !k.inicio) { msg.textContent = 'Escolha a data.'; return; }
+    k.titulo = titulo;
+    const btn = $('#f button[type=submit]');
+    btn.disabled = true; btn.textContent = 'Criando…';
+    const { data: novo, error } = await sb.from('combinados').insert(k).select().single();
+    if (error) { btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(error); return; }
+    const { error: e2 } = await sb.from('combinado_membros').insert(pessoas.map((p) => ({ ...p, combinado_id: novo.id })));
+    if (e2) {
+      await sb.from('combinados').delete().eq('id', novo.id);
+      btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(e2); return;
+    }
+    await sb.rpc('gerar_cobrancas');
+    toast('Combinado criado! Agora mande para cada um topar.');
+    go(`/k/${novo.id}`);
+  });
+}
+
+async function telaCombinado(id) {
+  render(casca('<p class="carregando">Carregando…</p>', { voltar: '/' }));
+  await sb.rpc('gerar_cobrancas');
+  const [rk, rc] = await Promise.all([
+    sb.from('combinados').select('*, combinado_membros(*)').eq('id', id).maybeSingle(),
+    sb.from('cobrancas').select('id, titulo, ciclo, vencimento, status, valor_total, participantes(status)').eq('combinado_id', id).order('ciclo', { ascending: false })
+  ]);
+  if (rk.error) throw rk.error;
+  const k = rk.data;
+  if (!k) { render(casca('<div class="card pilha"><h2>Combinado não encontrado</h2><a class="btn" href="#/">Voltar ao início</a></div>', { voltar: '/' })); return; }
+  const ciclos = rc.data || [];
+  k.combinado_membros.sort((a, b) => a.criado_em.localeCompare(b.criado_em));
+  const abertos = new Set();
+  const linkTopo = (m) => `${location.origin}/topo/?t=${m.token}`;
+  const conviteDe = (m) => gerarConvite({ tom: k.tom, nome: m.nome, titulo: k.titulo, regra: textoRegra(k, m.valor), link: linkTopo(m), plano: estado.perfil.plano });
+
+  const proxima = () => {
+    if (k.regra === 'unico' || k.status !== 'ativo') return null;
+    const n = (ciclos.length ? Math.max(...ciclos.map((c) => c.ciclo || 0)) : 0) + 1;
+    if (k.parcelas && n > k.parcelas) return null;
+    return vencimentoCiclo(k.inicio, k.frequencia, n);
+  };
+
+  const desenhar = () => {
+    const ms = k.combinado_membros.filter((m) => m.ativo);
+    const toparam = ms.filter((m) => m.aceito_em).length;
+    const prox = proxima();
+    const cartao = (m) => {
+      const aberto = abertos.has(m.id);
+      const situacao = m.aceito_em ? `<span class="tag pago">Topou em ${new Date(m.aceito_em).toLocaleDateString('pt-BR')}</span>`
+        : m.convite_enviado_em ? '<span class="tag pendente">Convite enviado</span>' : '<span class="tag neutra">Convite não enviado</span>';
+      return `<article class="pessoa" aria-label="${esc(m.nome)}">
+        <div class="linha-flex entre"><div><h3>${esc(m.nome)}</h3><p class="muted pequeno">${brl(m.valor || k.valor_por_pessoa)} ${k.regra === 'unico' ? 'no total' : k.parcelas ? 'por parcela' : k.frequencia === 'semanal' ? 'por semana' : 'por mês'}</p></div>${situacao}</div>
+        ${k.status !== 'encerrado' && !m.aceito_em ? `<div class="acoes">
+          <button type="button" class="btn peq" data-acao="previa" data-id="${m.id}">${m.convite_enviado_em ? 'Reenviar convite' : 'Enviar convite no WhatsApp'}</button>
+          <button type="button" class="btn sec peq" data-acao="link" data-id="${m.id}">Copiar link</button>
+        </div>` : ''}
+        ${aberto ? `<div class="previa">
+          <label for="m-${m.id}" class="pequeno" style="font-weight: 600">Convite (pode editar antes de enviar)</label>
+          <textarea id="m-${m.id}">${esc(conviteDe(m))}</textarea>
+          <div class="acoes">
+            <button type="button" class="btn peq" data-acao="whats" data-id="${m.id}">Abrir WhatsApp</button>
+            <button type="button" class="btn sec peq" data-acao="copiarmsg" data-id="${m.id}">Copiar mensagem</button>
+            <button type="button" class="btn texto peq" data-acao="fechar" data-id="${m.id}">Fechar</button>
+          </div></div>` : ''}
+        ${k.status !== 'encerrado' ? `<button type="button" class="btn texto peq" data-acao="remover" data-id="${m.id}" style="align-self: flex-start">Tirar do combinado</button>` : ''}
+      </article>`;
+    };
+    render(casca(`
+      <div class="pilha-p">
+        <div class="linha-flex"><span class="icone ${COR_ICONE[k.modelo]}">${ICONE[k.modelo]}</span><span class="tag neutra">${MODELOS[k.modelo].nome}</span>${k.status !== 'ativo' ? `<span class="tag pendente">${k.status === 'pausado' ? 'Pausado' : 'Encerrado'}</span>` : ''}</div>
+        <h1>${esc(k.titulo)}</h1>
+        <p class="muted">${esc(textoRegra(k))}${k.descricao ? ` · ${esc(k.descricao)}` : ''}</p>
+      </div>
+      <div class="resumo">
+        <div class="card escuro"><p class="muted pequeno">Toparam</p><p class="numero" style="color: var(--lima)">${toparam} de ${ms.length}</p></div>
+        <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
+      </div>
+      <p class="muted pequeno">O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.</p>
+      ${k.status === 'ativo' ? `<div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(k.tom, 'tomk')}</div>` : ''}
+      <section class="pilha-p" aria-label="Participantes"><h2>Participantes</h2>${ms.map(cartao).join('')}
+        ${k.status !== 'encerrado' ? `<form id="add" class="card pilha-p" novalidate>
+          <span style="font-weight: 600">Adicionar pessoa</span>
+          <div class="grade-2">
+            <div class="campo"><label class="sr" for="novo-nome">Nome</label><input id="novo-nome" maxlength="60" placeholder="Nome"></div>
+            <div class="campo"><label class="sr" for="novo-tel">WhatsApp</label><input id="novo-tel" type="tel" inputmode="tel" maxlength="20" placeholder="WhatsApp (opcional)"></div>
+          </div>
+          <button type="submit" class="btn sec peq" style="align-self: flex-start">Adicionar</button>
+          <span class="ajuda muted pequeno">Entra a partir da próxima cobrança.</span>
+        </form>` : ''}
+      </section>
+      ${ciclos.length ? `<section class="pilha-p" aria-label="Cobranças"><h2>Cobranças</h2><ul class="lista">${ciclos.map((c) => {
+        const pagos = c.participantes.filter((p) => p.status === 'pago').length;
+        return `<li><a class="item" href="#/c/${c.id}"><span class="grow"><span class="titulo-item">${esc(c.titulo)}</span><span class="muted pequeno" style="display:block">Vence ${dataBR(c.vencimento)} · ${pagos} de ${c.participantes.length} pagos</span></span><span class="tag ${c.status === 'concluida' ? 'pago' : 'pendente'}">${c.status === 'concluida' ? 'Concluída' : 'Em aberto'}</span></a></li>`;
+      }).join('')}</ul></section>` : ''}
+      <div class="acoes" style="margin-top: 8px">
+        ${k.status === 'ativo' ? '<button type="button" class="btn sec peq" data-acao="pausar">Pausar</button>' : ''}
+        ${k.status === 'pausado' ? '<button type="button" class="btn sec peq" data-acao="retomar">Retomar</button>' : ''}
+        ${k.status !== 'encerrado' ? '<button type="button" class="btn sec peq" data-acao="encerrar">Encerrar</button>' : ''}
+        <button type="button" class="btn perigo peq" data-acao="apagar">Apagar combinado</button>
+      </div>`, { voltar: '/' }));
+    ligarTons('tomk', async (t) => {
+      k.tom = t;
+      desenhar();
+      await sb.from('combinados').update({ tom: t }).eq('id', k.id);
+    });
+    const add = $('#add');
+    if (add) add.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nome = $('#novo-nome').value.trim();
+      if (!nome) { toast('Diga o nome da pessoa.', 'erro'); return; }
+      const { data: m, error: e1 } = await sb.from('combinado_membros').insert({ combinado_id: k.id, nome, telefone: soDigitos($('#novo-tel').value) || null }).select().single();
+      if (e1) { toast(traduzErro(e1), 'erro'); return; }
+      k.combinado_membros.push(m);
+      toast(`${primeiroNome(nome)} entrou no combinado.`);
+      desenhar();
+    });
+  };
+
+  const marcarConvite = async (m) => {
+    const { data, error: e } = await sb.from('combinado_membros').update({ convite_enviado_em: new Date().toISOString() }).eq('id', m.id).select().single();
+    if (!e) Object.assign(m, data);
+    abertos.delete(m.id);
+    desenhar();
+  };
+
+  ouvinteTela = async (e) => {
+    const b = e.target.closest('[data-acao]');
+    if (!b) return;
+    const acao = b.dataset.acao;
+    const m = k.combinado_membros.find((x) => x.id === b.dataset.id);
+    if (acao === 'previa') { abertos.add(m.id); desenhar(); const t = $(`#m-${m.id}`); if (t) t.focus(); }
+    else if (acao === 'fechar') { abertos.delete(m.id); desenhar(); }
+    else if (acao === 'whats') {
+      window.open(linkWhatsApp(m.telefone, $(`#m-${m.id}`).value), '_blank', 'noopener');
+      await marcarConvite(m);
+      toast('Pronto! Agora é só apertar enviar no WhatsApp.');
+    } else if (acao === 'copiarmsg') {
+      const ok = await copiar($(`#m-${m.id}`).value);
+      if (ok) { await marcarConvite(m); toast('Convite copiado. Cole no WhatsApp.'); } else toast('Não consegui copiar.', 'erro');
+    } else if (acao === 'link') {
+      const ok = await copiar(linkTopo(m));
+      toast(ok ? 'Link do convite copiado.' : 'Não consegui copiar o link.', ok ? 'ok' : 'erro');
+    } else if (acao === 'remover') {
+      if (!window.confirm(`Tirar ${m.nome} do combinado? As próximas cobranças não vão incluir essa pessoa.`)) return;
+      const { error: e1 } = await sb.from('combinado_membros').update({ ativo: false }).eq('id', m.id);
+      if (e1) { toast(traduzErro(e1), 'erro'); return; }
+      m.ativo = false; desenhar();
+    } else if (acao === 'pausar' || acao === 'retomar' || acao === 'encerrar') {
+      if (acao === 'encerrar' && !window.confirm('Encerrar este combinado? Não serão criadas novas cobranças. As que já existem continuam.')) return;
+      const status = acao === 'pausar' ? 'pausado' : acao === 'retomar' ? 'ativo' : 'encerrado';
+      const { error: e2 } = await sb.from('combinados').update({ status }).eq('id', k.id);
+      if (e2) { toast(traduzErro(e2), 'erro'); return; }
+      k.status = status;
+      toast(status === 'pausado' ? 'Combinado pausado.' : status === 'ativo' ? 'Combinado retomado.' : 'Combinado encerrado.');
+      desenhar();
+    } else if (acao === 'apagar') {
+      if (!window.confirm('Apagar este combinado de vez? As cobranças já criadas continuam na sua lista.')) return;
+      const { error: e3 } = await sb.from('combinados').delete().eq('id', k.id);
+      if (e3) { toast(traduzErro(e3), 'erro'); return; }
+      toast('Combinado apagado.'); go('/');
+    }
+  };
+  app.addEventListener('click', ouvinteTela);
+  desenhar();
 }
 
 function linhasPessoasHTML(lista, rotulo) {
@@ -491,12 +891,14 @@ async function telaCobranca(id) {
 
   const resumoDetalhes = () => {
     const d = c.detalhes || {};
-    if (c.tipo === 'carona' && d.custo_total) return `${d.dias} dias · ${Number(d.km_dia).toLocaleString('pt-BR')} km/dia · custo total ${brl(d.custo_total)} dividido por ${d.pessoas_divisao}`;
+    if (c.tipo === 'carona' && d.custo_total) return `${d.dias} dias${d.periodo ? ' por ' + d.periodo : ''} · ${Number(d.km_dia).toLocaleString('pt-BR')} km/dia · custo total ${brl(d.custo_total)} dividido por ${d.pessoas_divisao}`;
     if (c.tipo === 'racha' && d.total_gastos) return `Total gasto ${brl(d.total_gastos)} dividido por ${d.pessoas_divisao}`;
+    if (d.meta) return `Meta da vaquinha ${brl(d.meta)}${c.descricao ? ' · ' + esc(c.descricao) : ''}`;
+    if (d.total_por_pessoa) return `Viagem: ${brl(d.total_por_pessoa)} por pessoa no total${c.descricao ? ' · ' + esc(c.descricao) : ''}`;
     return c.descricao ? esc(c.descricao) : '';
   };
   const mensagemPara = (p) => gerarMensagem({
-    tipo: c.tipo, tom: c.tom, momento: p.enviado_em ? 'lembrete' : 'inicial',
+    tipo: tipoDe(c), tom: c.tom, momento: p.enviado_em ? 'lembrete' : (c.combinado_id ? 'combinado' : 'inicial'),
     nome: p.nome, valor: brl(restante(p)), titulo: c.titulo, vencimento: dataBR(c.vencimento),
     link: linkPublico(p.token), plano: estado.perfil.plano
   });
@@ -537,9 +939,10 @@ async function telaCobranca(id) {
     const pagos = ps.filter((p) => p.status === 'pago').length;
     render(casca(`
       <div class="pilha-p">
-        <div class="linha-flex"><span class="icone ${COR_ICONE[c.tipo]}">${ICONE[c.tipo]}</span><span class="tag neutra">${NOMES_TIPO[c.tipo]}</span>${c.status !== 'aberta' ? `<span class="tag pago">${c.status === 'concluida' ? 'Concluída' : 'Cancelada'}</span>` : ''}</div>
+        <div class="linha-flex"><span class="icone ${COR_ICONE[tipoDe(c)]}">${ICONE[tipoDe(c)]}</span><span class="tag neutra">${NOMES_TIPO[tipoDe(c)]}</span>${c.status !== 'aberta' ? `<span class="tag pago">${c.status === 'concluida' ? 'Concluída' : 'Cancelada'}</span>` : ''}</div>
         <h1>${esc(c.titulo)}</h1>
         <p class="muted">${resumoDetalhes()}</p>
+        ${c.combinado_id ? `<a class="pequeno" href="#/k/${c.combinado_id}">Ver o combinado</a>` : ''}
       </div>
       <div class="resumo">
         <div class="card escuro"><p class="muted pequeno">Total</p><p class="numero">${brl(c.valor_total)}</p></div>
