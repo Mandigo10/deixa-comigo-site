@@ -232,3 +232,78 @@ export function mensagemResultado({ b, r, jogos, link, plano }) {
     : `Não foi dessa vez: o jogo que mais acertou fez ${maxAc} ${maxAc === 1 ? 'ponto' : 'pontos'}.`;
   return `Resultado do bolão "${b.titulo}" · ${nomeLoteria(b.loteria)} ${r.concurso}\nSorteadas: ${dz}\n${txt}\n\nConferência de cada jogo: ${link}${assinatura(plano)}`;
 }
+
+// ---------- números escolhidos pelos participantes ----------
+export function surpresinha(lot) {
+  const L = LOTERIAS[lot];
+  const todos = Array.from({ length: L.ate - L.de + 1 }, (_, i) => L.de + i);
+  for (let i = todos.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [todos[i], todos[j]] = [todos[j], todos[i]]; }
+  return todos.slice(0, L.simples).sort((a, b) => a - b);
+}
+
+// Cartela para tocar nos números. jogos: array de arrays; atual: índice do jogo aberto.
+export function seletorHTML(lot, jogos, atual) {
+  const L = LOTERIAS[lot];
+  const sel = new Set(jogos[atual] || []);
+  const abas = jogos.length > 1 ? `<div class="tons" role="group" aria-label="Escolha o jogo">${jogos.map((j, i) =>
+    `<button type="button" class="tom" data-jogo="${i}" aria-pressed="${i === atual}">Jogo ${i + 1}${j.length === L.simples ? ' ✓' : ''}</button>`).join('')}</div>` : '';
+  const nums = [];
+  for (let n = L.de; n <= L.ate; n++) nums.push(`<button type="button" class="num ${sel.has(n) ? 'escolhido' : 'livre'}" data-dz="${n}" aria-pressed="${sel.has(n)}">${dezena(n)}</button>`);
+  return `${abas}
+    <div class="grade-n mini" role="group" aria-label="Números do jogo ${atual + 1}">${nums.join('')}</div>
+    <div class="linha-flex entre"><span class="pequeno" aria-live="polite"><strong>${sel.size} de ${L.simples}</strong> números${jogos.length > 1 ? ` no jogo ${atual + 1}` : ''}</span>
+      <span class="acoes"><button type="button" class="btn sec peq" data-surpresa>Surpresinha</button><button type="button" class="btn texto peq" data-limpar>Limpar</button></span></div>`;
+}
+
+// Liga os cliques da cartela. estado = { lot, jogos, atual }; redesenhar() repinta.
+export function ligarSeletor(caixa, estado, redesenhar, avisar) {
+  caixa.addEventListener('click', (e) => {
+    const L = LOTERIAS[estado.lot];
+    const b = e.target.closest('[data-dz],[data-jogo],[data-surpresa],[data-limpar]');
+    if (!b) return;
+    const jogo = estado.jogos[estado.atual] || [];
+    if (b.dataset.jogo != null) estado.atual = Number(b.dataset.jogo);
+    else if (b.dataset.surpresa != null) estado.jogos[estado.atual] = surpresinha(estado.lot);
+    else if (b.dataset.limpar != null) estado.jogos[estado.atual] = [];
+    else {
+      const n = Number(b.dataset.dz);
+      if (jogo.includes(n)) estado.jogos[estado.atual] = jogo.filter((x) => x !== n);
+      else if (jogo.length >= L.simples) { if (avisar) avisar(`Este jogo já tem ${L.simples} números. Toque em um para tirar.`); return; }
+      else estado.jogos[estado.atual] = [...jogo, n].sort((x, y) => x - y);
+      // completou: passa para o próximo jogo que falta
+      if (estado.jogos[estado.atual].length === L.simples) {
+        const prox = estado.jogos.findIndex((j, i) => i > estado.atual && j.length < L.simples);
+        if (prox >= 0) setTimeout(() => { estado.atual = prox; redesenhar(); }, 350);
+      }
+    }
+    redesenhar();
+  });
+}
+
+export function jogadoNosJogos(palpite, jogos) {
+  return jogos.some((j) => palpite.every((n) => j.includes(n)));
+}
+
+export function textoListaLoterica(b, itens) {
+  const linhas = itens.map((it, i) => `${i + 1}) ${it.dezenas.map(dezena).join(' ')}  (${it.nome})`);
+  return `Bolão "${b.titulo}" · ${textoConcurso(b)}\n${itens.length} ${itens.length === 1 ? 'jogo' : 'jogos'} de ${LOTERIAS[b.loteria].simples} números:\n\n${linhas.join('\n')}`;
+}
+
+// ---------- próximo sorteio ----------
+export function valorCurto(v) {
+  if (!v) return '';
+  if (v >= 1e9) return `R$ ${(v / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${v >= 2e9 ? 'bilhões' : 'bilhão'}`;
+  if (v >= 1e6) return `R$ ${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ${v >= 2e6 ? 'milhões' : 'milhão'}`;
+  return brl(v);
+}
+// Preenche o elemento com o prêmio estimado quando o bolão é do próximo concurso.
+export async function mostrarProximo(el, b) {
+  if (!el || !b.concurso) return;
+  const r = await buscarResultado(b.loteria, null);
+  const u = r && r.resultado;
+  if (!u || !u.proximo) return;
+  if (u.proximo.concurso === b.concurso && u.proximo.estimativa) {
+    el.innerHTML = `Prêmio estimado: <strong>${esc(valorCurto(u.proximo.estimativa))}</strong>${u.acumulado ? ' · acumulou!' : ''}${u.proximo.data ? ` · sorteio ${dataBR(u.proximo.data)}` : ''}`;
+    el.hidden = false;
+  }
+}

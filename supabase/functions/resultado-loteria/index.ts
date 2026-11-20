@@ -1,5 +1,5 @@
 // Busca o resultado oficial de uma loteria da CAIXA e guarda em resultados_loteria.
-// Entrada (POST JSON): { loteria: 'megasena' | ..., concurso?: number }
+// Entrada (POST JSON): { loteria: 'megasena' | ... | 'todas', concurso?: number }
 // Sem concurso: devolve o último resultado e o próximo concurso.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -97,20 +97,43 @@ async function guardar(r: Resultado) {
   });
 }
 
+// Último resultado: usa o guardado enquanto o próximo sorteio não aconteceu (sorteios às 20h, resultado ~21h).
+async function ultimo(lot: string) {
+  const { data: ult } = await admin.from('resultados_loteria').select('*').eq('loteria', lot).order('concurso', { ascending: false }).limit(1).maybeSingle();
+  if (ult && ult.proximo && ult.proximo.data && Date.now() - Date.parse(ult.buscado_em) < 6 * 3600 * 1000) {
+    const agora = new Date(Date.now() - 3 * 3600 * 1000);
+    const hoje = agora.toISOString().slice(0, 10);
+    if (ult.proximo.data > hoje || (ult.proximo.data === hoje && agora.getUTCHours() < 21)) return ult;
+  }
+  const memo = recentes.get(`${lot}:ultimo`);
+  if (memo && Date.now() - memo.em < 5 * 60 * 1000) return memo.dados as Resultado | null;
+  const r = await buscar(lot, null);
+  if (r) await guardar(r);
+  const final = r || ult || null;
+  recentes.set(`${lot}:ultimo`, { em: Date.now(), dados: final });
+  return final;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ erro: 'metodo' }, 405);
   let corpo: { loteria?: string; concurso?: number } = {};
   try { corpo = await req.json(); } catch (_) { return json({ erro: 'entrada' }, 400); }
   const lot = String(corpo.loteria || '');
+  if (lot === 'todas') {
+    const lista = await Promise.all(LOTERIAS.map((l) => ultimo(l)));
+    return json({ resultados: lista.filter(Boolean) });
+  }
   const concurso = corpo.concurso ? Math.trunc(Number(corpo.concurso)) : null;
   if (!LOTERIAS.includes(lot) || (concurso !== null && !(concurso > 0 && concurso < 100000))) return json({ erro: 'entrada' }, 400);
-
-  if (concurso) {
-    const { data: salvo } = await admin.from('resultados_loteria').select('*').eq('loteria', lot).eq('concurso', concurso).maybeSingle();
-    if (salvo) return json({ resultado: salvo });
+  if (!concurso) {
+    const u = await ultimo(lot);
+    return json(u ? { resultado: u } : { pendente: true, ultimo: null });
   }
-  const chave = `${lot}:${concurso || 'ultimo'}`;
+
+  const { data: salvo } = await admin.from('resultados_loteria').select('*').eq('loteria', lot).eq('concurso', concurso).maybeSingle();
+  if (salvo) return json({ resultado: salvo });
+  const chave = `${lot}:${concurso}`;
   const memo = recentes.get(chave);
   if (memo && Date.now() - memo.em < 5 * 60 * 1000) return json(memo.dados);
 
@@ -121,9 +144,8 @@ Deno.serve(async (req) => {
     dados = { resultado: r };
   } else {
     // ainda não sorteado (ou fonte fora do ar): devolve o último para mostrar o próximo concurso
-    const ultimo = concurso ? await buscar(lot, null) : null;
-    if (ultimo) await guardar(ultimo);
-    dados = { pendente: true, ultimo: ultimo ? { concurso: ultimo.concurso, data: ultimo.data, proximo: ultimo.proximo } : null };
+    const u = await ultimo(lot);
+    dados = { pendente: true, ultimo: u ? { concurso: u.concurso, data: u.data, proximo: u.proximo } : null };
   }
   recentes.set(chave, { em: Date.now(), dados });
   return json(dados);

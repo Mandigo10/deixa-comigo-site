@@ -6,7 +6,7 @@ import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensag
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
-import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado } from '../js/boloes.js';
+import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo } from '../js/boloes.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -1555,6 +1555,12 @@ function telaFormBolao() {
           <div class="campo"><label for="data">Data do sorteio</label><input id="data" type="date"></div>
         </div>
         <p class="muted pequeno" id="dica-concurso" aria-live="polite"></p>
+        <p class="pequeno"><a href="/resultados/" target="_blank" rel="noopener">Ver os últimos resultados e próximos sorteios</a></p>
+      </div>
+      <div class="card pilha">
+        <div class="campo"><label for="ppc">Quem escolhe os números?</label>
+          <select id="ppc"><option value="0">Eu escolho todos os jogos</option><option value="1" selected>Cada um escolhe 1 jogo por cota</option><option value="2">Cada um escolhe 2 jogos por cota</option><option value="3">Cada um escolhe 3 jogos por cota</option></select>
+          <span class="ajuda" id="ajuda-ppc"></span></div>
       </div>
       <div class="card pilha">
         <div class="grade-2">
@@ -1591,6 +1597,13 @@ function telaFormBolao() {
     if (!(cota > 0)) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha o valor da cota.</span>'; return; }
     $('#resumo').innerHTML = `<div class="lin"><span>Cada cota</span><span>${brl(cota)}</span></div>${maxc > 0 ? `<div class="lin total"><span>Se fechar as ${maxc} cotas</span><span>${brl(cota * maxc)}</span></div>` : '<div class="lin"><span>Total de cotas</span><span>sem limite</span></div>'}`;
   };
+  const ajudaPpc = () => {
+    const L = LOTERIAS[$('#loteria').value]; const n = Number($('#ppc').value);
+    $('#ajuda-ppc').textContent = n ? `Ao entrar, cada pessoa toca nos números (ou usa a Surpresinha). Cada jogo é uma aposta simples de ${L.simples} números. Você recebe a lista pronta para levar à lotérica.` : 'Você faz os jogos e depois registra pelo canhoto.';
+  };
+  $('#ppc').addEventListener('change', ajudaPpc);
+  $('#loteria').addEventListener('change', ajudaPpc);
+  ajudaPpc();
   $('#loteria').addEventListener('change', sugerir);
   $('#f').addEventListener('input', atualizar);
   atualizar(); sugerir();
@@ -1611,7 +1624,7 @@ function telaFormBolao() {
     const { data: novo, error } = await sb.from('boloes').insert({
       titulo, descricao: $('#descricao').value.trim() || null, loteria: $('#loteria').value, concurso,
       data_sorteio: $('#data').value || null, valor_cota: cota, max_cotas: maxc, max_por_pessoa: maxc ? Math.min(maxp, maxc) : maxp,
-      prazo: $('#prazo').value || null
+      prazo: $('#prazo').value || null, palpites_por_cota: Number($('#ppc').value) || 0
     }).select().single();
     btn.disabled = false;
     if (error) { msg.textContent = traduzErro(error); return; }
@@ -1628,10 +1641,11 @@ async function telaBolao(id) {
       sb.from('boloes').select('*').eq('id', id).maybeSingle(),
       sb.from('bolao_cotas').select('*').eq('bolao_id', id).order('criado_em'),
       sb.from('bolao_jogos').select('*').eq('bolao_id', id).order('criado_em').order('id'),
-      sb.from('bolao_fotos').select('*').eq('bolao_id', id).order('criado_em')
+      sb.from('bolao_fotos').select('*').eq('bolao_id', id).order('criado_em'),
+      sb.from('bolao_palpites').select('*').eq('bolao_id', id).eq('ativo', true).order('criado_em').order('ordem')
     ]);
     rs.forEach((r) => { if (r.error) throw r.error; });
-    return { b: rs[0].data, cotas: rs[1].data || [], jogos: rs[2].data || [], fotos: rs[3].data || [] };
+    return { b: rs[0].data, cotas: rs[1].data || [], jogos: rs[2].data || [], fotos: rs[3].data || [], palpites: rs[4].data || [] };
   };
   let s = await carregar();
   if (!s.b) { render(casca('<div class="card pilha"><h2>Bolão não encontrado</h2><a class="btn" href="#/">Voltar ao início</a></div>', { voltar: '/' })); return; }
@@ -1669,12 +1683,13 @@ async function telaBolao(id) {
   const revisaoHTML = () => {
     if (!revisao) return '';
     const L = LOTERIAS[s.b.loteria];
-    const fonte = revisao.fonte === 'ia' ? 'Lido por IA. Confira cada número com o canhoto antes de salvar.'
+    const fonte = revisao.fonte === 'palpites' ? 'Estes são os números que o grupo escolheu (só de quem pagou). Confira se você jogou todos antes de salvar e depois fotografe o canhoto como comprovante.'
+      : revisao.fonte === 'ia' ? 'Lido por IA. Confira cada número com o canhoto antes de salvar.'
       : revisao.fonte === 'ocr' && revisao.achou ? 'Lido no celular. A leitura pode errar: confira cada número com o canhoto antes de salvar.'
         : revisao.fonte ? 'Não consegui achar os jogos na foto. Digite os números abaixo (a foto fica guardada para todos verem).'
           : `Digite as ${L.min === L.max ? L.min : `${L.min} a ${L.max}`} dezenas de cada jogo, separadas por espaço.`;
     return `<div class="card pilha" style="border: 2px solid var(--ink)" id="revisao">
-      <h3>${revisao.fonte ? 'Confira os jogos lidos' : 'Digitar jogos'}</h3>
+      <h3>${revisao.fonte === 'palpites' ? 'Registrar os jogos do grupo' : revisao.fonte ? 'Confira os jogos lidos' : 'Digitar jogos'}</h3>
       <p class="muted pequeno">${fonte}</p>
       ${revisao.concursoLido && revisao.concursoLido !== s.b.concurso ? `<label class="check"><input type="checkbox" id="usar-conc" checked> Usar o concurso ${revisao.concursoLido}, lido no canhoto${s.b.concurso ? ` (está ${s.b.concurso})` : ''}</label>` : ''}
       ${revisao.jogos.map((t, i) => `<div class="campo"><label for="rj-${i}">Jogo ${i + 1}</label>
@@ -1684,6 +1699,32 @@ async function telaBolao(id) {
       <button type="button" class="btn texto peq" data-acao="rj-mais" style="align-self:flex-start; padding-left:0">+ Mais um jogo</button>
       <div class="acoes"><button type="button" class="btn lima" data-acao="rj-salvar">Salvar jogos</button><button type="button" class="btn sec" data-acao="rj-cancelar">Cancelar</button></div>
     </div>`;
+  };
+
+  const itensPalpites = (soPagos) => {
+    const porCota = new Map(s.cotas.map((c) => [c.id, c]));
+    return s.palpites.map((p) => ({ ...p, cota: porCota.get(p.cota_id) }))
+      .filter((p) => p.cota && (!soPagos || p.cota.status === 'pago'))
+      .map((p) => ({ dezenas: p.dezenas, nome: p.cota.nome, pago: p.cota.status === 'pago' }));
+  };
+  const palpitesSec = () => {
+    const b = s.b;
+    if (!b.palpites_por_cota && !s.palpites.length) return '';
+    const todos = itensPalpites(false);
+    const pagos = todos.filter((x) => x.pago);
+    const possiveis = s.cotas.reduce((a, c) => a + c.cotas, 0) * (b.palpites_por_cota || 0);
+    const jogos = s.jogos.map((j) => j.dezenas);
+    const faltando = jogos.length ? pagos.filter((x) => !jogadoNosJogos(x.dezenas, jogos)) : [];
+    const porPessoa = new Map();
+    todos.forEach((x) => { const g = porPessoa.get(x.nome) || { nome: x.nome, pago: x.pago, jogos: [] }; g.jogos.push(x.dezenas); porPessoa.set(x.nome, g); });
+    return `<section class="pilha-p" aria-labelledby="t-palp">
+      <h2 id="t-palp">Números escolhidos pelo grupo</h2>
+      <p class="muted pequeno">${plural(todos.length, 'jogo escolhido', 'jogos escolhidos')}${possiveis ? ` de ${possiveis} possíveis` : ''} · ${pagos.length} de quem já pagou. Quem não escolher, você escolhe.</p>
+      ${porPessoa.size ? `<ul class="lista">${Array.from(porPessoa.values()).map((g) => `<li class="item" style="flex-direction:column; align-items:stretch"><span class="linha-flex entre"><span class="titulo-item">${esc(g.nome)}</span><span class="tag ${g.pago ? 'pago' : 'pendente'}">${g.pago ? 'Pago' : 'Não pagou'}</span></span>${g.jogos.map((j) => `<span class="linha-flex" style="gap:8px">${bolasHTML(j)}${jogos.length ? (jogadoNosJogos(j, jogos) ? '<span class="tag pago">Jogado</span>' : '<span class="tag pendente">Falta jogar</span>') : ''}</span>`).join('')}</li>`).join('')}</ul>` : '<div class="card"><p class="muted">Ninguém escolheu números ainda.</p></div>'}
+      ${faltando.length ? `<div class="aviso">${plural(faltando.length, 'jogo de quem pagou não está', 'jogos de quem pagou não estão')} nos jogos registrados.</div>` : ''}
+      ${pagos.length ? `<div class="acoes"><button type="button" class="btn" data-acao="lista-copiar">Copiar lista para a lotérica</button><button type="button" class="btn sec" data-acao="lista-whats">Mandar a lista no WhatsApp</button>${!revisao && !lendo ? '<button type="button" class="btn texto" data-acao="lista-registrar">Já joguei: registrar como jogos</button>' : ''}</div>
+        ${todos.length > pagos.length ? `<p class="muted pequeno">A lista leva só os ${pagos.length} jogos de quem já pagou. ${plural(todos.length - pagos.length, 'jogo ficou', 'jogos ficaram')} de fora até a pessoa pagar.</p>` : ''}` : ''}
+    </section>`;
   };
 
   const conferenciaSec = () => {
@@ -1721,6 +1762,7 @@ async function telaBolao(id) {
         <div class="linha-flex"><span class="icone roxo">${ICONE.bolao}</span><span class="tag neutra">Bolão</span><span class="tag ${aberto ? 'pago' : 'neutra'}">${aberto ? 'Aberto' : 'Fechado'}</span></div>
         <h1>${esc(b.titulo)}</h1>
         <p class="muted">${esc(textoConcurso(b))} · ${brl(b.valor_cota)} a cota${b.prazo ? ` · pagar até ${dataBR(b.prazo)}` : ''}</p>
+        <p id="proximo" class="pequeno" hidden></p>
       </div>
       <div class="resumo">
         <div class="card escuro"><p class="muted pequeno">Cotas</p><p class="numero" style="color: var(--lima)">${totalCotas}${b.max_cotas ? ` de ${b.max_cotas}` : ''}</p><p class="muted pequeno">${plural(cotas.length, 'pessoa', 'pessoas')}</p></div>
@@ -1747,11 +1789,14 @@ async function telaBolao(id) {
           </form></details>
       </section>
 
+      ${palpitesSec()}
+
       <section class="pilha-p" aria-labelledby="t-jogos">
         <h2 id="t-jogos">Jogos</h2>
         ${editarConcurso ? `<form id="f-conc" class="card pilha-p" novalidate>
             <div class="grade-2"><div class="campo"><label for="b-conc">Concurso</label><input id="b-conc" inputmode="numeric" maxlength="5" value="${b.concurso || ''}"></div>
             <div class="campo"><label for="b-data">Data do sorteio</label><input id="b-data" type="date" value="${b.data_sorteio || ''}"></div></div>
+            <div class="campo"><label for="b-ppc">Quem escolhe os números?</label><select id="b-ppc">${[0, 1, 2, 3].map((n) => `<option value="${n}" ${b.palpites_por_cota === n ? 'selected' : ''}>${n ? `Cada um escolhe ${n} ${n === 1 ? 'jogo' : 'jogos'} por cota` : 'Eu escolho todos os jogos'}</option>`).join('')}</select></div>
             <div class="acoes"><button type="submit" class="btn peq">Salvar</button><button type="button" class="btn sec peq" data-acao="conc-cancelar">Cancelar</button></div></form>`
           : `<p class="muted">${esc(textoConcurso(b))} <button type="button" class="btn texto peq" data-acao="conc-editar">${b.concurso ? 'Alterar' : 'Informar concurso'}</button></p>`}
         ${jogos.length && !(resultado && resultado.concurso === b.concurso) ? `<ol class="jogos">${jogos.map((j, i) => `<li><span class="linha-flex entre"><span class="muted pequeno">Jogo ${i + 1}</span><button type="button" class="btn texto peq" data-acao="tirar-jogo" data-id="${j.id}" aria-label="Apagar o jogo ${i + 1}">Apagar</button></span>${bolasHTML(j.dezenas)}</li>`).join('')}</ol>` : ''}
@@ -1800,11 +1845,12 @@ async function telaBolao(id) {
       e.preventDefault();
       const conc = Math.round(parseValor($('#b-conc').value)) || null;
       if (conc && !(conc > 0 && conc < 100000)) { toast('Confira o número do concurso.', 'erro'); return; }
-      const { error } = await sb.from('boloes').update({ concurso: conc, data_sorteio: $('#b-data').value || null }).eq('id', s.b.id);
+      const { error } = await sb.from('boloes').update({ concurso: conc, data_sorteio: $('#b-data').value || null, palpites_por_cota: Number($('#b-ppc').value) || 0 }).eq('id', s.b.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       editarConcurso = false; resultado = null; buscou = false; await recarregar(); buscarRes();
     });
     buscarRes();
+    if (s.b.concurso && !(resultado && resultado.concurso === s.b.concurso) && (!s.b.data_sorteio || s.b.data_sorteio >= hojeISO())) mostrarProximo($('#proximo'), s.b);
   };
 
   const processarFoto = async (arquivo) => {
@@ -1867,6 +1913,19 @@ async function telaBolao(id) {
     } else if (acao === 'res-grupo') {
       window.open(linkWhatsApp('', mensagemResultado({ b: s.b, r: resultado, jogos: s.jogos.map((j) => j.dezenas), link: linkEntrada(), plano: estado.perfil.plano })), '_blank', 'noopener');
       registrar('bolao_resultado_grupo', {});
+    } else if (acao === 'lista-copiar' || acao === 'lista-whats') {
+      const txt = textoListaLoterica(s.b, itensPalpites(true));
+      if (acao === 'lista-whats') { window.open(linkWhatsApp('', txt), '_blank', 'noopener'); return; }
+      const ok = await copiar(txt);
+      toast(ok ? 'Lista copiada! Cole no bloco de notas ou mostre na lotérica.' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
+      registrar('bolao_lista', {});
+    } else if (acao === 'lista-registrar') {
+      const ja = s.jogos.map((j) => j.dezenas);
+      const novos = itensPalpites(true).filter((x) => !ja.some((j) => j.length === x.dezenas.length && j.every((n, i) => n === x.dezenas[i])));
+      if (!novos.length) { toast('Todos os jogos de quem pagou já estão registrados.'); return; }
+      revisao = { jogos: novos.map((x) => x.dezenas.map(dezena).join(' ')), fotoId: null, concursoLido: null, fonte: 'palpites' };
+      desenhar();
+      const r = $('#revisao'); if (r) r.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else if (acao === 'conc-editar') { editarConcurso = true; desenhar(); }
     else if (acao === 'conc-cancelar') { editarConcurso = false; desenhar(); }
     else if (acao === 'digitar') { revisao = { jogos: [''], fotoId: null, concursoLido: null, fonte: null }; desenhar(); const i = $('#rj-0'); if (i) i.focus(); }
