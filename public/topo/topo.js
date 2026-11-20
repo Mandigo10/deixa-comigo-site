@@ -23,7 +23,9 @@ function detalhesHTML(k) {
   if (k.modelo === 'carona' && d.custo_total) {
     linhas.push([`Km por ${d.periodo || 'período'}`, `${Number(d.km_total).toLocaleString('pt-BR')} km`]);
     linhas.push(['Combustível', brl(d.combustivel)]);
-    linhas.push(['Desgaste do carro', brl(d.desgaste)]);
+    linhas.push(['Manutenção e pneus', brl(d.desgaste)]);
+    if (Number(d.pedagio) > 0) linhas.push(['Pedágio', brl(d.pedagio)]);
+    if (Number(d.estacionamento) > 0) linhas.push(['Estacionamento', brl(d.estacionamento)]);
     linhas.push([`Custo por ${d.periodo || 'período'}`, brl(d.custo_total)]);
     linhas.push(['Dividido entre', `${d.pessoas_divisao} pessoas${d.motorista_incluido ? ' (com o motorista)' : ''}`]);
   }

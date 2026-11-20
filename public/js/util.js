@@ -20,6 +20,7 @@ export function parseValor(txt) {
   let s = String(txt || '').trim().replace(/[R$\s]/g, '');
   if (!s) return NaN;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); // "3.000" = três mil
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
 }

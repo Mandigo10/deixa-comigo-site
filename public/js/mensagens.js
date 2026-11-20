@@ -27,6 +27,10 @@ export function gerarMensagem({ tipo, tom, momento, nome, valor, titulo, vencime
     } else {
       msg = `Oi, ${n}. Conforme o combinado, ${titulo} vence${vencimento ? ` em ${vencimento}` : ' agora'}: ${valor}. O Pix está aqui: ${link}`;
     }
+  } else if (momento === 'aviso') {
+    if (tom === 'leve') msg = `Oi, ${n}! Só avisando com antecedência: ${t} (${valor}) vence em ${vencimento}. O Pix já está aqui, pra facilitar: ${link}`;
+    else if (tom === 'neutro') msg = `Oi, ${n}. Lembrete: ${valor} de ${t} vence em ${vencimento}. Pix: ${link}`;
+    else msg = `Oi, ${n}. ${t} vence em ${vencimento}: ${valor}. Peço que acerte até a data. Pix: ${link}`;
   } else if (momento === 'lembrete') {
     if (tom === 'leve') {
       msg = `Oi, ${n}! Só um lembrete amigo: ${t} (${valor}) ainda está em aberto. O Pix continua aqui, pra facilitar: ${link}`;

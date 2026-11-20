@@ -4,6 +4,7 @@ import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp,
 import { gerarMensagem, gerarConvite, TONS } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra } from '../js/combinados.js';
+import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
 const estado = { sessao: null, perfil: null, perfilCarregado: false };
@@ -19,6 +20,12 @@ const ICONE = {
   mensalidade: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h3"/></svg>',
   inicio: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
   conta: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  resumo: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  calc: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18.5h8"/></svg>',
+  casa: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-5h6v5"/></svg>',
+  bolo: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h16v-8H4z"/><path d="M4 16c2 1 4 1 6 0s4-1 6 0 3 1 4 0"/><path d="M12 13V9M12 6V5"/><path d="M7 13v-2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2"/></svg>',
+  obra: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20v3H2zM4 18V11a8 8 0 0 1 16 0v7"/><path d="M10 4.5V9M14 4.5V9"/></svg>',
+  coracao: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>',
   mais: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   voltar: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
 };
@@ -34,7 +41,9 @@ function casca(conteudo, { nav = true, ativo = '', voltar = '' } = {}) {
   const barra = nav ? `
     <nav class="nav" aria-label="Menu principal"><div class="dentro">
       <a href="#/" ${ativo === 'inicio' ? 'aria-current="page"' : ''}>${ICONE.inicio}Início</a>
-      <a href="#/nova" class="mais">${ICONE.mais}Nova cobrança</a>
+      <a href="#/resumo" ${ativo === 'resumo' ? 'aria-current="page"' : ''}>${ICONE.resumo}Resumo</a>
+      <a href="#/nova" class="mais" aria-label="Novo combinado ou cobrança">${ICONE.mais}Novo</a>
+      <a href="#/calc" ${ativo === 'calc' ? 'aria-current="page"' : ''}>${ICONE.calc}Calcular</a>
       <a href="#/conta" ${ativo === 'conta' ? 'aria-current="page"' : ''}>${ICONE.conta}Conta</a>
     </div></nav>` : '';
   return `<div class="casca"><header class="topo">${topo}</header><main class="pilha">${conteudo}</main></div>${barra}`;
@@ -85,6 +94,9 @@ const ROTAS = [
   [/^\/k\/([0-9a-f-]{36})$/, (id) => telaCombinado(id)],
   [/^\/c\/([0-9a-f-]{36})$/, (id) => telaCobranca(id)],
   [/^\/conta$/, () => telaConta()],
+  [/^\/resumo$/, () => telaResumo()],
+  [/^\/calc$/, () => telaCalculadoras()],
+  [/^\/calc\/([a-z]+)$/, (id) => telaCalculadora(id)],
   [/^\/?$/, () => telaPainel()]
 ];
 let rodando = false;
@@ -240,6 +252,17 @@ function lembreteDevido(p, c) {
   }
   return dias >= DIAS_ENTRE_LEMBRETES;
 }
+function diasAte(iso) {
+  const [a, m, d] = iso.split('-').map(Number);
+  const [ha, hm, hd] = hojeISO().split('-').map(Number);
+  return Math.round((Date.UTC(a, m - 1, d) - Date.UTC(ha, hm - 1, hd)) / 86400000);
+}
+// Véspera do vencimento: avisar com antecedência (uma vez)
+function avisoDevido(p, c) {
+  if (p.status !== 'pendente' || !p.enviado_em || !c.vencimento || p.ultimo_lembrete_em) return false;
+  const faltam = diasAte(c.vencimento);
+  return faltam >= 0 && faltam <= 1 && p.enviado_em.slice(0, 10) < hojeISO();
+}
 function restante(p) { return round2(Math.max(0, Number(p.valor) - Number(p.valor_pago || 0))); }
 
 async function telaPainel() {
@@ -271,7 +294,8 @@ async function telaPainel() {
       const base = { href: `#/c/${c.id}`, titulo: c.titulo };
       if (p.status === 'avisou_pago') tarefas.push({ ...base, txt: `${esc(primeiroNome(p.nome))} avisou que pagou ${brl(restante(p))}. Confira e confirme.`, tag: 'Confirmar' });
       else if (p.status === 'pendente' && !p.enviado_em) tarefas.push({ ...base, txt: `Enviar a cobrança para ${esc(primeiroNome(p.nome))}`, tag: 'Enviar' });
-      else if (lembreteDevido(p, c)) tarefas.push({ ...base, txt: `Lembrar ${esc(primeiroNome(p.nome))} de ${brl(restante(p))}`, tag: 'Lembrar' });
+      else if (avisoDevido(p, c)) tarefas.push({ ...base, txt: `Avisar ${esc(primeiroNome(p.nome))} que ${brl(restante(p))} vence ${diasAte(c.vencimento) === 0 ? 'hoje' : 'amanhã'}`, tag: 'Avisar' });
+      else if (lembreteDevido(p, c)) tarefas.push({ ...base, txt: `Lembrar ${esc(primeiroNome(p.nome))} de ${brl(restante(p))}${c.vencimento && diasAte(c.vencimento) < 0 ? ' (atrasado)' : ''}`, tag: 'Lembrar' });
     });
   });
   const abertas = cobrancas.filter((c) => c.status === 'aberta');
@@ -376,6 +400,10 @@ function telaFormCombinado(modelo) {
             <div class="campo"><label for="preco">Preço do litro (R$)</label><input id="preco" inputmode="decimal" placeholder="Ex.: 6,19"></div>
           </div>
           <div class="campo"><label for="desgaste">Desgaste por km (R$)</label><input id="desgaste" inputmode="decimal" value="0,15"><span class="ajuda">Pneu, revisão e óleo. Ajuste se quiser.</span></div>
+          <div class="grade-2">
+            <div class="campo"><label for="pedagio">Pedágio por dia, ida e volta (R$)</label><input id="pedagio" inputmode="decimal" value="0"></div>
+            <div class="campo"><label for="estac">Estacionamento por dia (R$)</label><input id="estac" inputmode="decimal" value="0"></div>
+          </div>
           <label class="check"><input type="checkbox" id="incluir" checked> Dividir também com o motorista (eu)</label>
           <p id="calc-res" class="muted pequeno" aria-live="polite"></p>
         </div>
@@ -428,6 +456,15 @@ function telaFormCombinado(modelo) {
     </form>`, { voltar: '/nova' }));
 
   ligarTons('tom', (t) => { f.tom = t; });
+  const pre = lerPreenchimento();
+  if (pre && pre.modelo === modelo) {
+    if (pre.titulo) $('#titulo').value = pre.titulo;
+    const rf = pre.frequencia && app.querySelector(`input[name=freq][value=${pre.frequencia}]`);
+    if (rf) rf.checked = true;
+    const campoValor = $('#valor');
+    if (campoValor && pre.valor) { campoValor.value = Number(pre.valor).toFixed(2).replace('.', ','); f.valorEditado = true; }
+    if (pre.calc) f.calcExterno = pre.calc;
+  }
   const freqAtual = () => { const r = app.querySelector('input[name=freq]:checked'); return r ? r.value : 'mensal'; };
   const pessoasValidas = () => f.pessoas.map((p) => ({ nome: p.nome.trim(), telefone: soDigitos(p.telefone) || null })).filter((p) => p.nome);
 
@@ -440,6 +477,7 @@ function telaFormCombinado(modelo) {
       k.regra = 'recorrente'; k.frequencia = freqAtual(); k.inicio = $('#inicio').value;
       k.valor_por_pessoa = round2(parseValor($('#valor').value));
       if (f.calc) k.detalhes = f.calc;
+      else if (f.calcExterno) k.detalhes = f.calcExterno;
     } else if (modelo === 'vaquinha') {
       k.regra = 'unico'; k.prazo = $('#prazo').value; k.inicio = hojeISO();
       const modo = app.querySelector('input[name=modo]:checked').value;
@@ -477,11 +515,14 @@ function telaFormCombinado(modelo) {
     const kmTotal = km * dias;
     const combustivel = round2((kmTotal / consumo) * preco);
     const desgaste = round2(kmTotal * desg);
-    const total = round2(combustivel + desgaste);
+    const pedagio = round2(Math.max(0, parseValor($('#pedagio').value || '0') || 0) * dias);
+    const estacionamento = round2(Math.max(0, parseValor($('#estac').value || '0') || 0) * dias);
+    const total = round2(combustivel + desgaste + pedagio + estacionamento);
     const div = Math.max(pessoasValidas().length, 1) + ($('#incluir').checked ? 1 : 0);
     const por = round2(total / div);
-    f.calc = { km_dia: km, dias, consumo, preco_litro: preco, desgaste_km: desg, km_total: round2(kmTotal), combustivel, desgaste, custo_total: total, pessoas_divisao: div, motorista_incluido: $('#incluir').checked, periodo };
-    $('#calc-res').textContent = `Custo por ${periodo}: ${brl(total)} (combustível ${brl(combustivel)} + desgaste ${brl(desgaste)}), dividido por ${div}: ${brl(por)} por pessoa.`;
+    f.calc = { km_dia: km, dias, consumo, preco_litro: preco, desgaste_km: desg, km_total: round2(kmTotal), combustivel, desgaste, pedagio, estacionamento, custo_total: total, pessoas_divisao: div, motorista_incluido: $('#incluir').checked, periodo };
+    const extras = [pedagio ? `pedágio ${brl(pedagio)}` : '', estacionamento ? `estacionamento ${brl(estacionamento)}` : ''].filter(Boolean).join(' + ');
+    $('#calc-res').textContent = `Custo por ${periodo}: ${brl(total)} (combustível ${brl(combustivel)} + manutenção ${brl(desgaste)}${extras ? ' + ' + extras : ''}), dividido por ${div}: ${brl(por)} por pessoa.`;
     if (!f.valorEditado) $('#valor').value = por.toFixed(2).replace('.', ',');
   };
 
@@ -733,6 +774,10 @@ function telaFormulario(tipo) {
         <div class="campo"><label for="preco">Preço do litro (R$)</label><input id="preco" inputmode="decimal" placeholder="Ex.: 6,19"></div>
       </div>
       <div class="campo"><label for="desgaste">Desgaste do carro por km (R$)</label><input id="desgaste" inputmode="decimal" value="0,15"><span class="ajuda">Pneu, revisão e óleo. R$ 0,15 por km é uma média para carro popular; ajuste se quiser.</span></div>
+      <div class="grade-2">
+        <div class="campo"><label for="pedagio">Pedágio por dia, ida e volta (R$)</label><input id="pedagio" inputmode="decimal" value="0"></div>
+        <div class="campo"><label for="estac">Estacionamento por dia (R$)</label><input id="estac" inputmode="decimal" value="0"></div>
+      </div>
       <label class="check"><input type="checkbox" id="incluir" checked> Dividir também com o motorista (eu)</label>`;
   } else if (tipo === 'emprestimo') {
     corpo = `
@@ -786,9 +831,15 @@ function telaFormulario(tipo) {
       const kmTotal = km * dias;
       const combustivel = round2((kmTotal / consumo) * preco);
       const desgaste = round2(kmTotal * desg);
-      const total = round2(combustivel + desgaste);
+      const pedagio = round2(Math.max(0, parseValor($('#pedagio').value || '0') || 0) * dias);
+      const estacionamento = round2(Math.max(0, parseValor($('#estac').value || '0') || 0) * dias);
+      const total = round2(combustivel + desgaste + pedagio + estacionamento);
       const divisao = nPag + (incluir ? 1 : 0);
-      return { porPessoa: round2(total / divisao), detalhes: { km_dia: km, dias, consumo, preco_litro: preco, desgaste_km: desg, km_total: round2(kmTotal), combustivel, desgaste, custo_total: total, pessoas_divisao: divisao, motorista_incluido: incluir }, linhas: [['Km rodados', `${round2(kmTotal).toLocaleString('pt-BR')} km`], ['Combustível', brl(combustivel)], ['Desgaste do carro', brl(desgaste)], ['Custo total', brl(total)], ['Dividido por', `${divisao} pessoa${divisao === 1 ? '' : 's'}`]] };
+      const linhas = [['Km rodados', `${round2(kmTotal).toLocaleString('pt-BR')} km`], ['Combustível', brl(combustivel)], ['Manutenção e pneus', brl(desgaste)]];
+      if (pedagio) linhas.push(['Pedágio', brl(pedagio)]);
+      if (estacionamento) linhas.push(['Estacionamento', brl(estacionamento)]);
+      linhas.push(['Custo total', brl(total)], ['Dividido por', `${divisao} pessoa${divisao === 1 ? '' : 's'}`]);
+      return { porPessoa: round2(total / divisao), detalhes: { km_dia: km, dias, consumo, preco_litro: preco, desgaste_km: desg, km_total: round2(kmTotal), combustivel, desgaste, pedagio, estacionamento, custo_total: total, pessoas_divisao: divisao, motorista_incluido: incluir }, linhas };
     }
     if (tipo === 'racha') {
       const gastos = f.gastos.map((g) => ({ descricao: g.descricao.trim() || 'Gasto', valor: parseValor(g.valor) })).filter((g) => g.valor > 0);
@@ -898,7 +949,7 @@ async function telaCobranca(id) {
     return c.descricao ? esc(c.descricao) : '';
   };
   const mensagemPara = (p) => gerarMensagem({
-    tipo: tipoDe(c), tom: c.tom, momento: p.enviado_em ? 'lembrete' : (c.combinado_id ? 'combinado' : 'inicial'),
+    tipo: tipoDe(c), tom: c.tom, momento: p.enviado_em ? (avisoDevido(p, c) ? 'aviso' : 'lembrete') : (c.combinado_id ? 'combinado' : 'inicial'),
     nome: p.nome, valor: brl(restante(p)), titulo: c.titulo, vencimento: dataBR(c.vencimento),
     link: linkPublico(p.token), plano: estado.perfil.plano
   });
@@ -906,7 +957,7 @@ async function telaCobranca(id) {
     const aberto = abertoPara.has(p.id);
     let acoes = '';
     if (p.status === 'pendente') {
-      acoes = `<button type="button" class="btn peq" data-acao="previa" data-id="${p.id}">${p.enviado_em ? 'Lembrar no WhatsApp' : 'Enviar no WhatsApp'}</button>
+      acoes = `<button type="button" class="btn peq" data-acao="previa" data-id="${p.id}">${!p.enviado_em ? 'Enviar no WhatsApp' : avisoDevido(p, c) ? 'Avisar que está vencendo' : 'Lembrar no WhatsApp'}</button>
                <button type="button" class="btn sec peq" data-acao="link" data-id="${p.id}">Copiar link</button>
                <button type="button" class="btn sec peq" data-acao="pago" data-id="${p.id}">Recebi</button>`;
     } else if (p.status === 'avisou_pago') {
@@ -1020,6 +1071,136 @@ async function telaCobranca(id) {
   };
   app.addEventListener('click', ouvinteTela);
   desenhar();
+}
+
+// ---------- calculadoras ----------
+function telaCalculadoras() {
+  const cores = ['lima', 'roxo', 'pessego'];
+  render(casca(`
+    <div class="pilha-p">
+      <h1>Quanto custa de verdade?</h1>
+      <p class="muted">Calcule o custo real antes de combinar. Os números certos tiram a vergonha de cobrar.</p>
+    </div>
+    ${CALCULADORAS.map((c, i) => `<a class="opcao" href="#/calc/${c.id}"><span class="icone ${cores[i % 3]}">${ICONE[c.icone] || ICONE.calc}</span><span><span class="display" style="font-size: 1.2rem; font-weight: 800; display:block">${esc(c.nome)}</span><span class="muted">${esc(c.resumo)}</span></span></a>`).join('')}
+    <p class="muted pequeno">Também dá para usar sem conta, e mandar para quem precisa: <a href="/calculadoras/">deixacomigo · calculadoras</a></p>
+  `, { ativo: 'calc' }));
+}
+
+function telaCalculadora(id) {
+  const calc = acharCalculadora(id);
+  if (!calc) { go('/calc'); return; }
+  render(casca(`
+    <div class="pilha-p"><h1>${esc(calc.nome)}</h1><p class="muted">${esc(calc.resumo)}</p></div>
+    <div id="calc-area"></div>`, { voltar: '/calc', ativo: 'calc' }));
+  montarCalculadora($('#calc-area'), calc, (dados) => {
+    guardarPreenchimento(dados);
+    go(`/combinar/${dados.modelo}`);
+  });
+}
+
+// ---------- resumo (dashboard) ----------
+function somarDias(iso, dias) {
+  const [a, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
+}
+
+async function telaResumo() {
+  render(casca('<p class="carregando">Montando seu resumo…</p>', { ativo: 'resumo' }));
+  await sb.rpc('gerar_cobrancas');
+  const [rc, rk] = await Promise.all([
+    sb.from('cobrancas').select('id, tipo, modelo, titulo, vencimento, status, combinado_id, ciclo, participantes(id, nome, telefone, valor, valor_pago, status, pago_em)').neq('status', 'cancelada'),
+    sb.from('combinados').select('id, modelo, titulo, regra, frequencia, inicio, prazo, parcelas, valor_por_pessoa, status, combinado_membros(ativo, valor)').eq('status', 'ativo')
+  ]);
+  if (rc.error) throw rc.error;
+  if (rk.error) throw rk.error;
+  const cobrancas = rc.data || [];
+  const combinados = rk.data || [];
+  const hoje = hojeISO();
+  const limite = somarDias(hoje, 30);
+  const mesAtual = hoje.slice(0, 7);
+  let aReceber = 0; let atrasado = 0; let recebidoMes = 0; let previsto = 0;
+  const porTipo = {};
+  const porPessoa = new Map();
+  const agenda = [];
+
+  cobrancas.forEach((c) => {
+    const tipo = tipoDe(c);
+    let restanteCobranca = 0;
+    (c.participantes || []).forEach((p) => {
+      if (p.status === 'pago') {
+        if (p.pago_em && new Date(p.pago_em).toISOString().slice(0, 7) === mesAtual) recebidoMes += Number(p.valor);
+        return;
+      }
+      if (c.status !== 'aberta') return;
+      const r = restante(p);
+      if (!r) return;
+      restanteCobranca += r;
+      aReceber += r;
+      porTipo[tipo] = (porTipo[tipo] || 0) + r;
+      const atr = c.vencimento && c.vencimento < hoje;
+      if (atr) atrasado += r;
+      const chave = soDigitos(p.telefone) || p.nome.trim().toLowerCase();
+      const pessoa = porPessoa.get(chave) || { nome: p.nome, total: 0, atrasado: 0, itens: 0, tipos: new Set(), proximo: null };
+      pessoa.total += r;
+      if (atr) pessoa.atrasado += r;
+      pessoa.itens += 1;
+      pessoa.tipos.add(tipo);
+      if (c.vencimento && c.vencimento >= hoje && (!pessoa.proximo || c.vencimento < pessoa.proximo)) pessoa.proximo = c.vencimento;
+      porPessoa.set(chave, pessoa);
+    });
+    if (c.status === 'aberta' && restanteCobranca > 0 && c.vencimento && c.vencimento >= hoje && c.vencimento <= limite) {
+      agenda.push({ data: c.vencimento, titulo: c.titulo, valor: restanteCobranca, href: `#/c/${c.id}`, futuro: false, tipo });
+    }
+  });
+
+  combinados.filter((k) => k.regra === 'recorrente').forEach((k) => {
+    const ativos = (k.combinado_membros || []).filter((m) => m.ativo);
+    if (!ativos.length) return;
+    const porCiclo = ativos.reduce((s, m) => s + Number(m.valor || k.valor_por_pessoa), 0);
+    const feitos = cobrancas.filter((c) => c.combinado_id === k.id).map((c) => c.ciclo || 0);
+    let ciclo = (feitos.length ? Math.max(...feitos) : 0) + 1;
+    for (let i = 0; i < 10; i++, ciclo++) {
+      if (k.parcelas && ciclo > k.parcelas) break;
+      const venc = vencimentoCiclo(k.inicio, k.frequencia, ciclo);
+      if (venc > limite) break;
+      previsto += porCiclo;
+      agenda.push({ data: venc, titulo: k.titulo, valor: porCiclo, href: `#/k/${k.id}`, futuro: true, tipo: k.modelo });
+    }
+  });
+  agenda.sort((a, b) => a.data.localeCompare(b.data));
+
+  const maxTipo = Math.max(1, ...Object.values(porTipo));
+  const pessoas = Array.from(porPessoa.values()).sort((a, b) => b.atrasado - a.atrasado || b.total - a.total);
+  const nomeMes = MESES[new Date().getMonth()];
+  const vazio = !aReceber && !recebidoMes && !agenda.length;
+
+  render(casca(`
+    <h1>Resumo</h1>
+    <div class="resumo">
+      <div class="card escuro"><p class="muted pequeno">A receber</p><p class="numero" style="color: var(--lima)">${brl(aReceber)}</p></div>
+      <div class="card" style="${atrasado ? 'border-color: #F3C4BF' : ''}"><p class="muted pequeno">Atrasado</p><p class="numero" style="${atrasado ? 'color: var(--vermelho)' : ''}">${brl(atrasado)}</p></div>
+      <div class="card"><p class="muted pequeno">Recebido em ${nomeMes}</p><p class="numero">${brl(recebidoMes)}</p></div>
+      <div class="card"><p class="muted pequeno">Previsto (30 dias)</p><p class="numero">${brl(previsto)}</p><p class="muted pequeno">dos combinados</p></div>
+    </div>
+    ${vazio ? `<div class="card vazio pilha-p"><p><strong>Ainda não há números por aqui.</strong></p><p>Crie um combinado e acompanhe tudo nesta tela.</p><a class="btn" href="#/nova" style="align-self:center">Criar combinado</a></div>` : ''}
+    ${Object.keys(porTipo).length ? `<section class="card pilha-p" aria-labelledby="t-tipo"><h2 id="t-tipo">A receber por tipo</h2>
+      ${Object.entries(porTipo).sort((a, b) => b[1] - a[1]).map(([t, v]) => `
+        <div class="pilha-p" style="gap: 4px; margin-top: 6px">
+          <div class="linha-flex entre"><span style="font-weight: 600">${NOMES_TIPO[t] || t}</span><span>${brl(v)}</span></div>
+          <div class="barra" style="height: 10px; margin-top: 0" aria-hidden="true"><span style="width: ${Math.max(4, Math.round((v / maxTipo) * 100))}%; background: var(--roxo)"></span></div>
+        </div>`).join('')}
+    </section>` : ''}
+    ${pessoas.length ? `<section class="pilha-p" aria-labelledby="t-pessoas"><h2 id="t-pessoas">Quem te deve</h2><ul class="lista">
+      ${pessoas.map((p) => `<li class="item"><span class="grow">
+          <span class="titulo-item">${esc(p.nome)}</span>
+          <span class="muted pequeno" style="display:block">${Array.from(p.tipos).map((t) => NOMES_TIPO[t] || t).join(', ')} · ${p.itens} cobrança${p.itens === 1 ? '' : 's'}${p.proximo ? ` · próxima ${dataBR(p.proximo)}` : ''}</span>
+        </span>
+        <span style="text-align: right"><strong>${brl(p.total)}</strong>${p.atrasado ? `<br><span class="tag" style="background:#FDE8E6; color: var(--vermelho)">${brl(p.atrasado)} atrasado</span>` : ''}</span></li>`).join('')}
+    </ul></section>` : ''}
+    ${agenda.length ? `<section class="pilha-p" aria-labelledby="t-agenda"><h2 id="t-agenda">Próximos 30 dias</h2><ul class="lista">
+      ${agenda.map((a) => `<li><a class="item" href="${a.href}"><span class="icone ${COR_ICONE[a.tipo] || 'roxo'}" style="width:44px;height:44px">${ICONE[a.tipo] || ''}</span><span class="grow"><span class="titulo-item">${esc(a.titulo)}</span><span class="muted pequeno" style="display:block">${dataBR(a.data)}${diasAte(a.data) === 0 ? ' · hoje' : diasAte(a.data) === 1 ? ' · amanhã' : ''}${a.futuro ? ' · cobrança será criada' : ''}</span></span><strong>${brl(a.valor)}</strong></a></li>`).join('')}
+    </ul></section>` : ''}
+  `, { ativo: 'resumo' }));
 }
 
 // ---------- conta ----------

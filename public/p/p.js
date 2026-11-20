@@ -24,7 +24,9 @@ function extrato(d, c) {
     linhas.push(['Dias de carona', String(det.dias)]);
     linhas.push(['Km rodados', `${Number(det.km_total).toLocaleString('pt-BR')} km`]);
     linhas.push(['Combustível', brl(det.combustivel)]);
-    linhas.push(['Desgaste do carro (pneu, revisão)', brl(det.desgaste)]);
+    linhas.push(['Manutenção e pneus', brl(det.desgaste)]);
+    if (Number(det.pedagio) > 0) linhas.push(['Pedágio', brl(det.pedagio)]);
+    if (Number(det.estacionamento) > 0) linhas.push(['Estacionamento', brl(det.estacionamento)]);
     linhas.push(['Custo total', brl(det.custo_total)]);
     linhas.push(['Dividido entre', `${det.pessoas_divisao} pessoas${det.motorista_incluido ? ' (com o motorista)' : ''}`]);
   } else if (c.tipo === 'racha' && det.total_gastos) {
