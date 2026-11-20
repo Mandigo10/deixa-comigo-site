@@ -6,6 +6,7 @@ import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensag
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
+import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado } from '../js/boloes.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -30,10 +31,11 @@ const ICONE = {
   bolo: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h16v-8H4z"/><path d="M4 16c2 1 4 1 6 0s4-1 6 0 3 1 4 0"/><path d="M12 13V9M12 6V5"/><path d="M7 13v-2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2"/></svg>',
   obra: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20v3H2zM4 18V11a8 8 0 0 1 16 0v7"/><path d="M10 4.5V9M14 4.5V9"/></svg>',
   coracao: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>',
+  bolao: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="4.5"/><circle cx="16" cy="16" r="4.5"/><path d="M15.5 4.5l3 0M17 3v3M5 17h3M6.5 15.5v3"/><path d="M7 8h2M15 16h2"/></svg>',
   mais: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   voltar: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
 };
-const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima', venda: 'pessego', cartela: 'lima' };
+const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima', venda: 'pessego', cartela: 'lima', bolao: 'roxo' };
 function tipoDe(c) { return categoriaDe(c); }
 const NOME_STATUS = { pendente: 'Pendente', avisou_pago: 'Avisou que pagou', pago: 'Pago' };
 
@@ -102,6 +104,8 @@ const ROTAS = [
   [/^\/vender$/, () => telaFormVenda()],
   [/^\/cartela\/nova$/, () => telaFormCartela()],
   [/^\/cartela\/([0-9a-f-]{36})$/, (id) => telaCartela(id)],
+  [/^\/bolao\/novo$/, () => telaFormBolao()],
+  [/^\/bolao\/([0-9a-f-]{36})$/, (id) => telaBolao(id)],
   [/^\/c\/([0-9a-f-]{36})$/, (id) => telaCobranca(id)],
   [/^\/conta$/, () => telaConta()],
   [/^\/resumo$/, () => telaResumo()],
@@ -291,14 +295,17 @@ async function telaPainel() {
   render(casca('<p class="carregando">Carregando suas cobranças…</p>', { ativo: 'inicio' }));
   await sb.rpc('gerar_cobrancas_v2');
   let resCartelas = null;
+  let resBoloes = null;
   const [resC, resK] = await Promise.all([
     sb.from('cobrancas').select('*, participantes(*)').neq('status', 'cancelada').order('criado_em', { ascending: false }),
     sb.from('combinados').select('*, combinado_membros(*)').neq('status', 'encerrado').order('criado_em', { ascending: false }),
-    sb.from('cartelas').select('id, titulo, quantidade, status, cartela_itens(status, valor)').order('criado_em', { ascending: false })
-  ]).then((r) => { resCartelas = r[2]; return r.slice(0, 2); });
+    sb.from('cartelas').select('id, titulo, quantidade, status, cartela_itens(status, valor)').order('criado_em', { ascending: false }),
+    sb.from('boloes').select('id, titulo, loteria, concurso, data_sorteio, status, max_cotas, bolao_cotas(status, cotas, valor), bolao_jogos(id)').order('criado_em', { ascending: false })
+  ]).then((r) => { resCartelas = r[2]; resBoloes = r[3]; return r.slice(0, 2); });
   if (resC.error) throw resC.error;
   if (resK.error) throw resK.error;
   const cartelas = (resCartelas && resCartelas.data) || [];
+  const boloes = (resBoloes && resBoloes.data) || [];
   const cobrancas = resC.data || [];
   const combinados = resK.data || [];
   let aReceber = 0; let recebido = 0;
@@ -306,6 +313,11 @@ async function telaPainel() {
   cartelas.forEach((ct) => {
     const avis = (ct.cartela_itens || []).filter((i) => i.status === 'avisou_pago').length;
     if (avis) tarefas.push({ href: `#/cartela/${ct.id}`, titulo: ct.titulo, txt: `${avis} ${avis === 1 ? 'item com aviso' : 'itens com aviso'} de "já paguei" na cartela. Confira e confirme.`, tag: 'Confirmar' });
+  });
+  boloes.forEach((bl) => {
+    const avis = (bl.bolao_cotas || []).filter((c) => c.status === 'avisou_pago').length;
+    if (avis) tarefas.push({ href: `#/bolao/${bl.id}`, titulo: bl.titulo, txt: `${avis} ${avis === 1 ? 'pessoa avisou' : 'pessoas avisaram'} que pagou a cota do bolão. Confira e confirme.`, tag: 'Confirmar' });
+    (bl.bolao_cotas || []).forEach((c) => { if (c.status === 'pago') recebido += Number(c.valor); else if (bl.status === 'aberto') aReceber += Number(c.valor); });
   });
   combinados.filter((k) => k.status === 'ativo').forEach((k) => {
     (k.combinado_membros || []).filter((m) => m.ativo && !m.convite_enviado_em).forEach((m) => {
@@ -370,6 +382,14 @@ async function telaPainel() {
       const avis = its.filter((i) => i.status === 'avisou_pago').length;
       return `<li><a class="item" href="#/cartela/${ct.id}"><span class="icone lima">${ICONE.cartela}</span><span class="grow"><span class="titulo-item">${esc(ct.titulo)}</span><span class="muted pequeno" style="display:block">${its.length} de ${ct.quantidade} escolhidos · ${brl(rec)} recebidos${ct.status === 'fechada' ? ' · fechada' : ''}</span></span>${avis ? `<span class="tag avisou_pago">${avis} avisaram</span>` : ''}</a></li>`;
     }).join('')}</ul></section>` : ''}
+    ${boloes.length ? `<section class="pilha-p" aria-labelledby="t-bol"><h2 id="t-bol">Bolões</h2><ul class="lista">${boloes.map((bl) => {
+      const cs = bl.bolao_cotas || [];
+      const tot = cs.reduce((a, c) => a + c.cotas, 0);
+      const rec = cs.filter((c) => c.status === 'pago').reduce((a, c) => a + Number(c.valor), 0);
+      const avis = cs.filter((c) => c.status === 'avisou_pago').length;
+      const nj = (bl.bolao_jogos || []).length;
+      return `<li><a class="item" href="#/bolao/${bl.id}"><span class="icone roxo">${ICONE.bolao}</span><span class="grow"><span class="titulo-item">${esc(bl.titulo)}</span><span class="muted pequeno" style="display:block">${esc(textoConcurso(bl))}</span><span class="muted pequeno" style="display:block">${tot}${bl.max_cotas ? ` de ${bl.max_cotas}` : ''} cotas · ${brl(rec)} recebidos · ${nj ? `${nj} ${nj === 1 ? 'jogo' : 'jogos'}` : 'sem jogos ainda'}${bl.status === 'fechado' ? ' · fechado' : ''}</span></span>${avis ? `<span class="tag avisou_pago">${avis} avisaram</span>` : ''}</a></li>`;
+    }).join('')}</ul></section>` : ''}
     ${abertas.length ? `<section class="pilha-p" aria-labelledby="t-abertas"><h2 id="t-abertas">Cobranças em aberto</h2>
       <ul class="lista">${abertas.map(itemCobranca).join('')}</ul></section>` : ''}
     ${concluidas.length ? `<details class="pilha-p"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Concluídas (${concluidas.length})</summary><ul class="lista">${concluidas.map(itemCobranca).join('')}</ul></details>` : ''}
@@ -388,6 +408,7 @@ function telaNova() {
     ${opcao('/combinar/vaquinha', 'vaquinha', 'Vaquinha', 'Churrasco, festa, presente: cada um paga antes, ninguém adianta nada.')}
     ${opcao('/combinar/viagem', 'viagem', 'Viagem parcelada', 'O valor da viagem dividido em parcelas até a data.')}
     ${opcao('/combinar/mensalidade', 'mensalidade', 'Mensalidade do grupo', 'Pelada, quadra, república, streaming dividido.')}
+    ${opcao('/bolao/novo', 'bolao', 'Bolão da loteria', 'Mega, Lotofácil, Quina: cada um paga a cota pelo link, todos veem os jogos e o app confere o resultado.')}
     <div class="pilha-p" style="margin-top: 16px">
       <h2>Para quem vende</h2>
       <p class="muted">Troque o caderno pelo app: ele cobra na data e mostra quem pagou.</p>
@@ -1514,6 +1535,393 @@ async function telaCartela(id) {
       const { error: e5 } = await sb.from('cartelas').delete().eq('id', c.id);
       if (e5) { toast(traduzErro(e5), 'erro'); return; }
       toast('Cartela apagada.'); go('/');
+    }
+  };
+  app.addEventListener('click', ouvinteTela);
+  desenhar();
+}
+
+// ---------- bolão ----------
+function telaFormBolao() {
+  const opcoes = Object.entries(LOTERIAS).map(([k, L]) => `<option value="${k}">${esc(L.nome)}</option>`).join('');
+  render(casca(`
+    <div class="pilha-p"><h1>Novo bolão</h1><p class="muted">Mande o link no grupo: cada um entra, paga a cota com Pix e vê quantos já entraram. Depois você fotografa o canhoto e todo mundo vê os jogos e o resultado.</p></div>
+    <form id="f" class="pilha" novalidate>
+      <div class="card pilha">
+        <div class="campo"><label for="titulo">Nome do bolão</label><input id="titulo" maxlength="60" placeholder="Ex.: Mega da Virada do trampo"></div>
+        <div class="campo"><label for="loteria">Loteria</label><select id="loteria">${opcoes}</select></div>
+        <div class="grade-2">
+          <div class="campo"><label for="concurso">Concurso</label><input id="concurso" inputmode="numeric" maxlength="5" placeholder="Pode deixar para depois"></div>
+          <div class="campo"><label for="data">Data do sorteio</label><input id="data" type="date"></div>
+        </div>
+        <p class="muted pequeno" id="dica-concurso" aria-live="polite"></p>
+      </div>
+      <div class="card pilha">
+        <div class="grade-2">
+          <div class="campo"><label for="cota">Valor da cota (R$)</label><input id="cota" inputmode="decimal" value="10,00"></div>
+          <div class="campo"><label for="maxc">Total de cotas</label><input id="maxc" inputmode="numeric" placeholder="Sem limite"></div>
+        </div>
+        <div class="grade-2">
+          <div class="campo"><label for="maxp">Máximo por pessoa</label><input id="maxp" inputmode="numeric" value="10"></div>
+          <div class="campo"><label for="prazo">Pagar até (opcional)</label><input id="prazo" type="date" min="${hojeISO()}"></div>
+        </div>
+        <div class="campo"><label for="descricao">Recado para o grupo (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: faço os jogos na sexta à tarde"></div>
+      </div>
+      <div id="resumo" class="calc" aria-live="polite"></div>
+      <p class="aviso">${esc(AVISO_BOLAO)}</p>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco lima" type="submit">Criar bolão</button>
+    </form>`, { voltar: '/nova' }));
+  ['#concurso', '#data'].forEach((s) => $(s).addEventListener('input', (e) => { e.target.dataset.mexeu = '1'; }));
+  const sugerir = async () => {
+    const lot = $('#loteria').value;
+    $('#dica-concurso').textContent = 'Buscando o próximo concurso…';
+    const r = await buscarResultado(lot, null);
+    if (!$('#loteria') || $('#loteria').value !== lot) return;
+    const p = r && r.resultado && r.resultado.proximo;
+    if (p && p.concurso) {
+      if (!$('#concurso').dataset.mexeu) $('#concurso').value = p.concurso;
+      if (!$('#data').dataset.mexeu && p.data) $('#data').value = p.data;
+      $('#dica-concurso').textContent = `Próximo concurso da ${LOTERIAS[lot].nome}: ${p.concurso}${p.data ? `, em ${dataBR(p.data)}` : ''}${p.estimativa ? ` · prêmio estimado ${brl(p.estimativa)}` : ''}.`;
+    } else $('#dica-concurso').textContent = 'Você pode preencher o concurso depois, quando fizer as apostas.';
+  };
+  const atualizar = () => {
+    const cota = round2(parseValor($('#cota').value));
+    const maxc = Math.round(parseValor($('#maxc').value));
+    if (!(cota > 0)) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha o valor da cota.</span>'; return; }
+    $('#resumo').innerHTML = `<div class="lin"><span>Cada cota</span><span>${brl(cota)}</span></div>${maxc > 0 ? `<div class="lin total"><span>Se fechar as ${maxc} cotas</span><span>${brl(cota * maxc)}</span></div>` : '<div class="lin"><span>Total de cotas</span><span>sem limite</span></div>'}`;
+  };
+  $('#loteria').addEventListener('change', sugerir);
+  $('#f').addEventListener('input', atualizar);
+  atualizar(); sugerir();
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('#msg'); msg.textContent = '';
+    const titulo = $('#titulo').value.trim();
+    const cota = round2(parseValor($('#cota').value));
+    const concurso = Math.round(parseValor($('#concurso').value)) || null;
+    const maxc = Math.round(parseValor($('#maxc').value)) || null;
+    const maxp = Math.round(parseValor($('#maxp').value)) || 10;
+    if (titulo.length < 2) { msg.textContent = 'Dê um nome para o bolão.'; return; }
+    if (!(cota > 0 && cota <= 10000)) { msg.textContent = 'Informe o valor da cota.'; return; }
+    if (concurso && !(concurso > 0 && concurso < 100000)) { msg.textContent = 'Confira o número do concurso.'; return; }
+    if (maxc && !(maxc >= 1 && maxc <= 1000)) { msg.textContent = 'O total de cotas vai de 1 a 1.000.'; return; }
+    if (!(maxp >= 1 && maxp <= 100)) { msg.textContent = 'O máximo por pessoa vai de 1 a 100.'; return; }
+    const btn = $('#f button[type=submit]'); btn.disabled = true;
+    const { data: novo, error } = await sb.from('boloes').insert({
+      titulo, descricao: $('#descricao').value.trim() || null, loteria: $('#loteria').value, concurso,
+      data_sorteio: $('#data').value || null, valor_cota: cota, max_cotas: maxc, max_por_pessoa: maxc ? Math.min(maxp, maxc) : maxp,
+      prazo: $('#prazo').value || null
+    }).select().single();
+    btn.disabled = false;
+    if (error) { msg.textContent = traduzErro(error); return; }
+    registrar('bolao_criado', { loteria: novo.loteria });
+    toast('Bolão criado! Mande o link no grupo.');
+    go(`/bolao/${novo.id}`);
+  });
+}
+
+async function telaBolao(id) {
+  render(casca('<p class="carregando">Carregando…</p>', { voltar: '/' }));
+  const carregar = async () => {
+    const rs = await Promise.all([
+      sb.from('boloes').select('*').eq('id', id).maybeSingle(),
+      sb.from('bolao_cotas').select('*').eq('bolao_id', id).order('criado_em'),
+      sb.from('bolao_jogos').select('*').eq('bolao_id', id).order('criado_em').order('id'),
+      sb.from('bolao_fotos').select('*').eq('bolao_id', id).order('criado_em')
+    ]);
+    rs.forEach((r) => { if (r.error) throw r.error; });
+    return { b: rs[0].data, cotas: rs[1].data || [], jogos: rs[2].data || [], fotos: rs[3].data || [] };
+  };
+  let s = await carregar();
+  if (!s.b) { render(casca('<div class="card pilha"><h2>Bolão não encontrado</h2><a class="btn" href="#/">Voltar ao início</a></div>', { voltar: '/' })); return; }
+  let resultado = null;
+  let buscando = false;
+  let buscou = false;
+  let revisao = null;
+  let lendo = '';
+  let sel = null;
+  let editarConcurso = false;
+  let acabouDeSalvar = false;
+  const liberada = conferenciaLiberada(estado.perfil.plano);
+  const linkEntrada = () => `${location.origin}/b/?t=${s.b.entrada_token}`;
+  const linkCota = (tk) => `${location.origin}/b/?c=${tk}`;
+  const recarregar = async () => { s = await carregar(); desenhar(); };
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+  const buscarRes = async () => {
+    const b = s.b;
+    if (!liberada || !b.concurso || !s.jogos.length || buscando || buscou) return;
+    if (b.data_sorteio && b.data_sorteio > hojeISO()) return;
+    buscando = true;
+    const { data } = await sb.from('resultados_loteria').select('*').eq('loteria', b.loteria).eq('concurso', b.concurso).maybeSingle();
+    let r = data;
+    if (!r) { const x = await buscarResultado(b.loteria, b.concurso); r = x && x.resultado; }
+    buscando = false; buscou = true;
+    if (r && r.concurso === s.b.concurso) { resultado = r; desenhar(); }
+  };
+
+  const lerRevisao = () => {
+    if (!revisao) return;
+    $$('[data-rj]').forEach((el) => { revisao.jogos[Number(el.dataset.rj)] = el.value; });
+  };
+
+  const revisaoHTML = () => {
+    if (!revisao) return '';
+    const L = LOTERIAS[s.b.loteria];
+    const fonte = revisao.fonte === 'ia' ? 'Lido por IA. Confira cada número com o canhoto antes de salvar.'
+      : revisao.fonte === 'ocr' && revisao.achou ? 'Lido no celular. A leitura pode errar: confira cada número com o canhoto antes de salvar.'
+        : revisao.fonte ? 'Não consegui achar os jogos na foto. Digite os números abaixo (a foto fica guardada para todos verem).'
+          : `Digite as ${L.min === L.max ? L.min : `${L.min} a ${L.max}`} dezenas de cada jogo, separadas por espaço.`;
+    return `<div class="card pilha" style="border: 2px solid var(--ink)" id="revisao">
+      <h3>${revisao.fonte ? 'Confira os jogos lidos' : 'Digitar jogos'}</h3>
+      <p class="muted pequeno">${fonte}</p>
+      ${revisao.concursoLido && revisao.concursoLido !== s.b.concurso ? `<label class="check"><input type="checkbox" id="usar-conc" checked> Usar o concurso ${revisao.concursoLido}, lido no canhoto${s.b.concurso ? ` (está ${s.b.concurso})` : ''}</label>` : ''}
+      ${revisao.jogos.map((t, i) => `<div class="campo"><label for="rj-${i}">Jogo ${i + 1}</label>
+        <div class="linha-flex"><input id="rj-${i}" data-rj="${i}" value="${esc(t)}" inputmode="numeric" autocomplete="off" placeholder="${Array.from({ length: L.min }, (_, k) => dezena(L.de + k * Math.floor((L.ate - L.de) / L.min))).join(' ')}" style="flex:1">
+        <button type="button" class="btn texto peq" data-acao="rj-tirar" data-i="${i}" aria-label="Tirar o jogo ${i + 1}">Tirar</button></div>
+        <span class="erro pequeno" id="rj-e-${i}"></span></div>`).join('')}
+      <button type="button" class="btn texto peq" data-acao="rj-mais" style="align-self:flex-start; padding-left:0">+ Mais um jogo</button>
+      <div class="acoes"><button type="button" class="btn lima" data-acao="rj-salvar">Salvar jogos</button><button type="button" class="btn sec" data-acao="rj-cancelar">Cancelar</button></div>
+    </div>`;
+  };
+
+  const conferenciaSec = () => {
+    const b = s.b;
+    if (!s.jogos.length) return '';
+    if (!b.concurso) return '<div class="aviso">Informe o número do concurso para o app conferir os jogos sozinho depois do sorteio.</div>';
+    if (!liberada) return '<div class="card pilha-p"><h2>Conferência</h2><p class="muted">A conferência automática é do plano Plus. Confira o resultado no app Loterias CAIXA.</p></div>';
+    if (resultado && resultado.concurso === b.concurso) {
+      return `<section class="pilha-p" aria-labelledby="t-conf"><h2 id="t-conf">Conferência</h2>${conferenciaHTML(s.jogos.map((j) => j.dezenas), resultado, b.loteria)}
+        <button type="button" class="btn" data-acao="res-grupo">Mandar o resultado no grupo</button></section>`;
+    }
+    if (b.data_sorteio && b.data_sorteio > hojeISO()) return `<div class="card pilha-p"><h2>Conferência</h2><p class="muted">O sorteio é em ${dataBR(b.data_sorteio)}. Depois dele o app confere os jogos sozinho e você manda o resultado no grupo.</p></div>`;
+    return `<div class="card pilha-p"><h2>Conferência</h2><p class="muted">${buscando || !buscou ? 'Buscando o resultado…' : `O resultado do concurso ${b.concurso} ainda não saiu. Assim que a CAIXA divulgar, a conferência aparece aqui.`}</p></div>`;
+  };
+
+  const desenhar = () => {
+    const { b, cotas, jogos, fotos } = s;
+    const aberto = b.status === 'aberto';
+    const totalCotas = cotas.reduce((a, c) => a + c.cotas, 0);
+    const recebido = cotas.filter((c) => c.status === 'pago').reduce((a, c) => a + Number(c.valor), 0);
+    const aReceber = cotas.filter((c) => c.status !== 'pago').reduce((a, c) => a + Number(c.valor), 0);
+    const avisaram = cotas.filter((c) => c.status === 'avisou_pago').length;
+    const naoPagas = cotas.filter((c) => c.status === 'reservado').length;
+    const linhaPessoa = (c) => `<li class="item"><span class="grow"><span class="titulo-item">${esc(c.nome)}</span>
+        <span class="muted pequeno" style="display:block">${plural(c.cotas, 'cota', 'cotas')} · ${brl(c.valor)}${c.telefone ? ` · ${esc(formatarTelefone(c.telefone))}` : ''}${c.status === 'avisou_pago' ? ' · avisou que pagou' : ''}</span></span>
+        <span class="acoes" style="justify-content:flex-end">
+          ${c.status === 'pago' ? '<span class="tag pago">Pago</span>' : c.status === 'avisou_pago'
+            ? `<button type="button" class="btn lima peq" data-acao="pago" data-id="${c.id}">Confirmar</button>`
+            : `<button type="button" class="btn sec peq" data-acao="cobrar" data-id="${c.id}">Cobrar</button><button type="button" class="btn peq" data-acao="pago" data-id="${c.id}">Pagou</button>`}
+          <button type="button" class="btn texto peq" data-acao="sel" data-id="${c.id}" aria-label="Mais opções para ${esc(c.nome)}" aria-expanded="${sel === c.id}">⋯</button></span></li>
+      ${sel === c.id ? `<li class="acoes" style="justify-content:flex-end">${c.status !== 'reservado' ? `<button type="button" class="btn sec peq" data-acao="naopago" data-id="${c.id}">Voltar para não pago</button>` : ''}<button type="button" class="btn perigo peq" data-acao="remover" data-id="${c.id}">Tirar do bolão</button></li>` : ''}`;
+
+    render(casca(`
+      <div class="pilha-p">
+        <div class="linha-flex"><span class="icone roxo">${ICONE.bolao}</span><span class="tag neutra">Bolão</span><span class="tag ${aberto ? 'pago' : 'neutra'}">${aberto ? 'Aberto' : 'Fechado'}</span></div>
+        <h1>${esc(b.titulo)}</h1>
+        <p class="muted">${esc(textoConcurso(b))} · ${brl(b.valor_cota)} a cota${b.prazo ? ` · pagar até ${dataBR(b.prazo)}` : ''}</p>
+      </div>
+      <div class="resumo">
+        <div class="card escuro"><p class="muted pequeno">Cotas</p><p class="numero" style="color: var(--lima)">${totalCotas}${b.max_cotas ? ` de ${b.max_cotas}` : ''}</p><p class="muted pequeno">${plural(cotas.length, 'pessoa', 'pessoas')}</p></div>
+        <div class="card"><p class="muted pequeno">Recebido</p><p class="numero">${brl(recebido)}</p><p class="muted pequeno">a receber ${brl(aReceber)}</p></div>
+      </div>
+      ${avisaram ? `<div class="aviso">${plural(avisaram, 'pessoa avisou', 'pessoas avisaram')} que já pagou. Confira no banco e toque em Confirmar.</div>` : ''}
+      ${aberto ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiar">Copiar link</button></div>` : ''}
+
+      <section class="pilha-p" aria-labelledby="t-pessoas">
+        <div class="linha-flex entre"><h2 id="t-pessoas">Quem entrou</h2>${naoPagas > 1 ? `<span class="muted pequeno">${naoPagas} sem pagar</span>` : ''}</div>
+        <p class="muted pequeno">Só você vê esta lista. No link, as pessoas veem só quantas entraram.</p>
+        ${cotas.length ? `<ul class="lista">${cotas.map(linhaPessoa).join('')}</ul>` : '<div class="card vazio"><p class="muted">Ninguém entrou ainda. Mande o link no grupo do WhatsApp.</p></div>'}
+        <details class="card"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Adicionar alguém por fora</summary>
+          <form id="f-add" class="pilha-p" novalidate style="margin-top: 8px">
+            <div class="grade-2">
+              <div class="campo"><label for="a-nome">Nome</label><input id="a-nome" maxlength="60"></div>
+              <div class="campo"><label for="a-tel">WhatsApp (opcional)</label><input id="a-tel" type="tel" inputmode="tel" maxlength="20"></div>
+            </div>
+            <div class="grade-2">
+              <div class="campo"><label for="a-cotas">Cotas</label><input id="a-cotas" inputmode="numeric" value="1"></div>
+              <label class="check" style="align-self:end"><input type="checkbox" id="a-pago"> Já pagou</label>
+            </div>
+            <button type="submit" class="btn peq" style="align-self: flex-start">Adicionar</button>
+          </form></details>
+      </section>
+
+      <section class="pilha-p" aria-labelledby="t-jogos">
+        <h2 id="t-jogos">Jogos</h2>
+        ${editarConcurso ? `<form id="f-conc" class="card pilha-p" novalidate>
+            <div class="grade-2"><div class="campo"><label for="b-conc">Concurso</label><input id="b-conc" inputmode="numeric" maxlength="5" value="${b.concurso || ''}"></div>
+            <div class="campo"><label for="b-data">Data do sorteio</label><input id="b-data" type="date" value="${b.data_sorteio || ''}"></div></div>
+            <div class="acoes"><button type="submit" class="btn peq">Salvar</button><button type="button" class="btn sec peq" data-acao="conc-cancelar">Cancelar</button></div></form>`
+          : `<p class="muted">${esc(textoConcurso(b))} <button type="button" class="btn texto peq" data-acao="conc-editar">${b.concurso ? 'Alterar' : 'Informar concurso'}</button></p>`}
+        ${jogos.length && !(resultado && resultado.concurso === b.concurso) ? `<ol class="jogos">${jogos.map((j, i) => `<li><span class="linha-flex entre"><span class="muted pequeno">Jogo ${i + 1}</span><button type="button" class="btn texto peq" data-acao="tirar-jogo" data-id="${j.id}" aria-label="Apagar o jogo ${i + 1}">Apagar</button></span>${bolasHTML(j.dezenas)}</li>`).join('')}</ol>` : ''}
+        ${!jogos.length && !revisao && !lendo ? '<div class="card"><p class="muted">Fez as apostas? Fotografe o canhoto: o app lê os números e todo mundo do bolão passa a ver os jogos e a foto.</p></div>' : ''}
+        ${fotos.length ? `<div class="fotos">${fotos.map((f, i) => `<span class="foto"><a href="${esc(urlFoto(f.caminho))}" target="_blank" rel="noopener"><img src="${esc(urlFoto(f.caminho))}" alt="Foto do canhoto ${i + 1}" loading="lazy"></a><button type="button" class="btn texto peq" data-acao="tirar-foto" data-id="${f.id}" aria-label="Apagar a foto ${i + 1}">Apagar</button></span>`).join('')}</div>` : ''}
+        ${lendo ? `<div class="card" role="status"><p id="lendo"><strong>${esc(lendo)}</strong></p></div>` : revisao ? revisaoHTML() : `
+          <div class="acoes">
+            <label class="btn lima" for="foto-camera" role="button" tabindex="0">Fotografar o canhoto</label>
+            <label class="btn sec" for="foto-galeria" role="button" tabindex="0">Escolher foto</label>
+            <button type="button" class="btn texto" data-acao="digitar">Digitar jogos</button>
+          </div>
+          <input type="file" id="foto-camera" accept="image/*" capture="environment" hidden>
+          <input type="file" id="foto-galeria" accept="image/*" hidden>`}
+        ${jogos.length && !revisao && !lendo && acabouDeSalvar ? '<button type="button" class="btn" data-acao="jogos-grupo">Avisar o grupo que os jogos estão registrados</button>' : jogos.length && !revisao && !lendo ? '<button type="button" class="btn sec peq" data-acao="jogos-grupo" style="align-self:flex-start">Mandar os jogos no grupo</button>' : ''}
+      </section>
+
+      ${conferenciaSec()}
+
+      <div class="acoes" style="margin-top: 8px">
+        <button type="button" class="btn sec peq" data-acao="${aberto ? 'fechar' : 'abrir'}">${aberto ? 'Fechar entradas' : 'Reabrir entradas'}</button>
+        <button type="button" class="btn perigo peq" data-acao="apagar">Apagar bolão</button>
+      </div>
+      <p class="muted pequeno">${esc(AVISO_BOLAO)}</p>`, { voltar: '/' }));
+
+    ['#foto-camera', '#foto-galeria'].forEach((sId) => {
+      const inp = $(sId);
+      if (inp) inp.addEventListener('change', () => { if (inp.files && inp.files[0]) processarFoto(inp.files[0]); });
+    });
+    $$('label[for^="foto-"]').forEach((l) => l.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); l.click(); } }));
+    const fa = $('#f-add');
+    if (fa) fa.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nome = $('#a-nome').value.trim();
+      const tel = soDigitos($('#a-tel').value) || null;
+      const n = Math.round(parseValor($('#a-cotas').value));
+      if (nome.length < 2) { toast('Diga o nome.', 'erro'); return; }
+      if (tel && (tel.length < 10 || tel.length > 13)) { toast('Confira o WhatsApp, com DDD.', 'erro'); return; }
+      if (!(n >= 1 && n <= 100)) { toast('Confira as cotas.', 'erro'); return; }
+      const pago = $('#a-pago').checked;
+      const { error } = await sb.from('bolao_cotas').insert({ bolao_id: s.b.id, nome, telefone: tel, cotas: n, valor: round2(n * Number(s.b.valor_cota)), status: pago ? 'pago' : 'reservado', pago_em: pago ? new Date().toISOString() : null });
+      if (error) { toast(/duplicate|unique/i.test(error.message) ? 'Esse WhatsApp já está no bolão.' : traduzErro(error), 'erro'); return; }
+      toast('Adicionado!'); await recarregar();
+    });
+    const fc = $('#f-conc');
+    if (fc) fc.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const conc = Math.round(parseValor($('#b-conc').value)) || null;
+      if (conc && !(conc > 0 && conc < 100000)) { toast('Confira o número do concurso.', 'erro'); return; }
+      const { error } = await sb.from('boloes').update({ concurso: conc, data_sorteio: $('#b-data').value || null }).eq('id', s.b.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      editarConcurso = false; resultado = null; buscou = false; await recarregar(); buscarRes();
+    });
+    buscarRes();
+  };
+
+  const processarFoto = async (arquivo) => {
+    lendo = 'Preparando a foto…'; desenhar();
+    let fotoId = null;
+    try {
+      const foto = await prepararFoto(arquivo);
+      lendo = 'Guardando a foto…'; desenhar();
+      const caminho = `${estado.sessao.user.id}/${s.b.id}/${crypto.randomUUID()}.jpg`;
+      const up = await sb.storage.from('canhotos').upload(caminho, foto.blob, { contentType: 'image/jpeg', upsert: false });
+      if (up.error) throw up.error;
+      const { data: f, error } = await sb.from('bolao_fotos').insert({ bolao_id: s.b.id, caminho }).select().single();
+      if (error) throw error;
+      fotoId = f.id;
+      lendo = 'Lendo os números do canhoto…'; desenhar();
+      const lido = await lerCanhoto(foto, s.b.loteria, (p) => { const el = $('#lendo'); if (el) el.innerHTML = `<strong>Lendo os números do canhoto… ${p}%</strong>`; });
+      revisao = { jogos: lido.jogos.map((j) => j.map(dezena).join(' ')), fotoId, concursoLido: lido.concurso || null, fonte: lido.fonte, achou: lido.jogos.length > 0 };
+      if (!revisao.jogos.length) revisao.jogos = [''];
+      registrar('canhoto_lido', { fonte: lido.fonte, jogos: lido.jogos.length });
+    } catch (e) {
+      console.error(e);
+      revisao = { jogos: [''], fotoId, concursoLido: null, fonte: fotoId ? 'ocr' : null, achou: false };
+      toast(fotoId ? 'Não consegui ler os números. Digite os jogos abaixo.' : 'Não consegui guardar a foto. Tente de novo ou digite os jogos.', 'erro');
+    }
+    lendo = '';
+    await recarregar();
+  };
+
+  ouvinteTela = async (e) => {
+    const bt = e.target.closest('[data-acao]');
+    if (!bt) return;
+    const acao = bt.dataset.acao;
+    const c = s.cotas.find((x) => x.id === bt.dataset.id);
+    if (acao === 'sel') { sel = sel === bt.dataset.id ? null : bt.dataset.id; desenhar(); }
+    else if (acao === 'pago' || acao === 'naopago') {
+      const mud = acao === 'pago' ? { status: 'pago', pago_em: new Date().toISOString() } : { status: 'reservado', pago_em: null, avisou_pago_em: null };
+      const { error } = await sb.from('bolao_cotas').update(mud).eq('id', c.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      if (acao === 'pago') toast(`${primeiroNome(c.nome)}: pago.`);
+      sel = null; await recarregar();
+    } else if (acao === 'remover') {
+      if (!window.confirm(`Tirar ${c.nome} do bolão? ${c.status === 'pago' ? 'Ela já pagou: combine a devolução por fora.' : ''}`)) return;
+      const { error } = await sb.from('bolao_cotas').delete().eq('id', c.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      sel = null; toast('Removido.'); await recarregar();
+    } else if (acao === 'cobrar') {
+      const texto = mensagemCota({ nome: c.nome, titulo: s.b.titulo, cotas: c.cotas, valor: c.valor, link: linkCota(c.token), plano: estado.perfil.plano });
+      window.open(linkWhatsApp(c.telefone || '', texto), '_blank', 'noopener');
+      registrar('bolao_cobranca', {});
+      sb.from('bolao_cotas').update({ cobrado_em: new Date().toISOString() }).eq('id', c.id).then(() => {});
+    } else if (acao === 'divulgar') {
+      window.open(linkWhatsApp('', divulgacaoBolao({ b: s.b, link: linkEntrada(), plano: estado.perfil.plano })), '_blank', 'noopener');
+    } else if (acao === 'copiar') {
+      const ok = await copiar(linkEntrada());
+      toast(ok ? 'Link do bolão copiado.' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
+    } else if (acao === 'jogos-grupo') {
+      acabouDeSalvar = false;
+      window.open(linkWhatsApp('', mensagemJogos({ b: s.b, qtd: s.jogos.length, link: linkEntrada(), plano: estado.perfil.plano })), '_blank', 'noopener');
+      desenhar();
+    } else if (acao === 'res-grupo') {
+      window.open(linkWhatsApp('', mensagemResultado({ b: s.b, r: resultado, jogos: s.jogos.map((j) => j.dezenas), link: linkEntrada(), plano: estado.perfil.plano })), '_blank', 'noopener');
+      registrar('bolao_resultado_grupo', {});
+    } else if (acao === 'conc-editar') { editarConcurso = true; desenhar(); }
+    else if (acao === 'conc-cancelar') { editarConcurso = false; desenhar(); }
+    else if (acao === 'digitar') { revisao = { jogos: [''], fotoId: null, concursoLido: null, fonte: null }; desenhar(); const i = $('#rj-0'); if (i) i.focus(); }
+    else if (acao === 'rj-mais') { lerRevisao(); revisao.jogos.push(''); desenhar(); const i = $(`#rj-${revisao.jogos.length - 1}`); if (i) i.focus(); }
+    else if (acao === 'rj-tirar') { lerRevisao(); revisao.jogos.splice(Number(bt.dataset.i), 1); if (!revisao.jogos.length) revisao.jogos = ['']; desenhar(); }
+    else if (acao === 'rj-cancelar') { revisao = null; desenhar(); }
+    else if (acao === 'rj-salvar') {
+      lerRevisao();
+      let ok = true;
+      const linhas = [];
+      revisao.jogos.forEach((t, i) => {
+        const el = $(`#rj-e-${i}`);
+        if (!t.trim()) { if (el) el.textContent = ''; return; }
+        const dz = lerDezenas(t);
+        const erro = erroJogo(dz, s.b.loteria);
+        if (el) el.textContent = erro;
+        if (erro) ok = false; else linhas.push(dz);
+      });
+      if (!ok) { toast('Confira os jogos marcados.', 'erro'); return; }
+      if (!linhas.length) { toast('Digite pelo menos um jogo.', 'erro'); return; }
+      bt.disabled = true;
+      const { error } = await sb.from('bolao_jogos').insert(linhas.map((dz) => ({ bolao_id: s.b.id, dezenas: dz, foto_id: revisao.fotoId })));
+      if (error) { bt.disabled = false; toast(traduzErro(error), 'erro'); return; }
+      const usar = $('#usar-conc');
+      if (usar && usar.checked && revisao.concursoLido) {
+        await sb.from('boloes').update({ concurso: revisao.concursoLido }).eq('id', s.b.id);
+        resultado = null; buscou = false;
+      }
+      registrar('bolao_jogos', { qtd: linhas.length, fonte: revisao.fonte || 'digitado' });
+      revisao = null; acabouDeSalvar = true;
+      toast(linhas.length === 1 ? 'Jogo salvo!' : `${linhas.length} jogos salvos!`);
+      buscou = false; await recarregar();
+    } else if (acao === 'tirar-jogo') {
+      if (!window.confirm('Apagar este jogo?')) return;
+      const { error } = await sb.from('bolao_jogos').delete().eq('id', bt.dataset.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      await recarregar();
+    } else if (acao === 'tirar-foto') {
+      if (!window.confirm('Apagar esta foto do canhoto? Os jogos já salvos continuam.')) return;
+      const f = s.fotos.find((x) => x.id === bt.dataset.id);
+      const { error } = await sb.from('bolao_fotos').delete().eq('id', f.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      sb.storage.from('canhotos').remove([f.caminho]).then(() => {});
+      await recarregar();
+    } else if (acao === 'fechar' || acao === 'abrir') {
+      const { error } = await sb.from('boloes').update({ status: acao === 'fechar' ? 'fechado' : 'aberto' }).eq('id', s.b.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      await recarregar();
+    } else if (acao === 'apagar') {
+      if (!window.confirm('Apagar este bolão, a lista de quem entrou, os jogos e as fotos? Isso não pode ser desfeito.')) return;
+      const caminhos = s.fotos.map((f) => f.caminho);
+      const { error } = await sb.from('boloes').delete().eq('id', s.b.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      if (caminhos.length) sb.storage.from('canhotos').remove(caminhos).then(() => {});
+      toast('Bolão apagado.'); go('/');
     }
   };
   app.addEventListener('click', ouvinteTela);
