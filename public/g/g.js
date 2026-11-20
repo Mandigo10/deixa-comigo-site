@@ -25,11 +25,12 @@ function guardar(t) {
   try { localStorage.setItem(CHAVE, t); } catch (e) { /* sem armazenamento */ }
 }
 
-function precoHTML(g) {
+function precoHTML(g, podeEntrar) {
   if (g.valor_modo === 'dividir' && g.custo_base) {
-    const agora = valorDividido(g, Math.max(1, Number(g.ocupadas) + 1));
-    const comMaisUm = valorDividido(g, Number(g.ocupadas) + 2);
-    const podeMais = !g.limite || Number(g.ocupadas) + 2 <= Number(g.limite);
+    const ocupadas = Number(g.ocupadas);
+    const agora = valorDividido(g, Math.max(1, podeEntrar ? ocupadas + 1 : ocupadas));
+    const comMaisUm = valorDividido(g, ocupadas + 2);
+    const podeMais = podeEntrar && (!g.limite || ocupadas + 2 <= Number(g.limite));
     return `<p class="muted pequeno">Valor por pessoa${g.regra === 'unico' ? '' : ` por ${g.frequencia === 'semanal' ? 'semana' : 'mês'}`}</p>
       <p class="numero" style="font-size: 2.2rem; color: var(--lima)">${brl(agora)}</p>
       <p>Custo total de ${brl(g.custo_base)} dividido por todo mundo${g.incluir_organizador ? ', incluindo quem organiza' : ''}.${podeMais ? ` <strong style="color: var(--lima)">Se mais 1 entrar depois de você, cai para ${brl(comMaisUm)}.</strong>` : ''}</p>`;
@@ -98,7 +99,7 @@ async function iniciar() {
       <h1>${esc(g.titulo)}</h1>
       <span class="tag neutra" style="align-self: flex-start">${esc(MODELOS[g.modelo] ? MODELOS[g.modelo].nome : 'Combinado')}</span>
     </div>
-    <div class="card escuro pilha-p">${precoHTML(g)}</div>
+    <div class="card escuro pilha-p">${precoHTML(g, !meu && g.aberto && !cheio)}</div>
     ${ocupacaoHTML(g)}
     ${detalhesHTML(g)}
     ${acao}
