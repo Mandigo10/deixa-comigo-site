@@ -42,8 +42,8 @@ function detalhesHTML(k) {
 
 function comoFunciona(k) {
   if (k.regra === 'unico') return `Até ${dataBR(k.prazo)}, você recebe o link com o Pix da sua parte. É só pagar e tocar em "Já paguei".`;
-  const quando = k.frequencia === 'semanal' ? 'toda semana' : 'todo mês';
-  return `${k.parcelas ? `Em cada uma das ${k.parcelas} datas` : `Uma vez por ${k.frequencia === 'semanal' ? 'semana' : 'mês'} (${quando})`}, você recebe o link com o Pix. É só pagar e tocar em "Já paguei". Sem ninguém precisar cobrar ninguém.`;
+  const quando = k.parcelas ? `Em cada uma das ${k.parcelas} datas` : (k.frequencia === 'semanal' ? 'Toda semana' : 'Todo mês');
+  return `${quando}, você recebe o link com o Pix. É só pagar e tocar em "Já paguei". Sem ninguém precisar cobrar ninguém.`;
 }
 
 async function iniciar() {
