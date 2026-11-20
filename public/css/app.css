@@ -127,3 +127,10 @@ a.item:hover { border-color: var(--ink); color: var(--ink); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .carregando { padding: 64px 16px; text-align: center; color: var(--ink-3); }
 @media (max-width: 380px) { .grade-2 { grid-template-columns: 1fr; } h1 { font-size: 1.6rem; } }
+.nomes { display: flex; flex-wrap: wrap; gap: 6px; }
+.nomes span { background: #ECEAF4; color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; font-weight: 600; }
+.nomes span.vaga { background: transparent; border: 1.5px dashed #BDB8CF; color: var(--ink-3); font-weight: 500; }
+.ocupacao { height: 12px; background: #ECEAF4; border-radius: 999px; overflow: hidden; }
+.ocupacao span { display: block; height: 100%; background: var(--roxo); border-radius: 999px; }
+.card.escuro .ocupacao { background: #2E2B3B; }
+.card.escuro .ocupacao span { background: var(--lima); }

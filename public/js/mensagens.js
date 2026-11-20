@@ -73,6 +73,19 @@ function assinar(msg, plano) {
   return msg;
 }
 
+// Divulgação da lista aberta (para mandar no grupo do WhatsApp)
+export function gerarDivulgacao({ modelo, titulo, regra, vagas, dividir, link, plano }) {
+  let msg;
+  if (modelo === 'carona') {
+    msg = `Tô oferecendo carona: ${titulo}. ${regra}${vagas ? `. São ${vagas} vagas` : ''}${dividir ? ', e quanto mais gente entrar, mais barato fica pra todo mundo' : ''}. Quem quiser, garante a vaga aqui: ${link}`;
+  } else if (modelo === 'vaquinha') {
+    msg = `Bora? ${titulo}: ${regra}${dividir ? ' (o valor é dividido entre quem entrar)' : ''}. Coloca seu nome na lista aqui: ${link}`;
+  } else {
+    msg = `${titulo}: ${regra}${vagas ? `. ${vagas} vagas` : ''}. Quem topar, entra pela lista: ${link}`;
+  }
+  return assinar(msg, plano);
+}
+
 // Convite para "topar" um combinado
 export function gerarConvite({ tom, nome, titulo, regra, link, plano }) {
   const n = primeiroNome(nome);

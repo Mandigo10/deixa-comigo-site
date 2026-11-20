@@ -1,9 +1,9 @@
 // Deixa Comigo — app (versão 1)
 import { sb } from '../js/sb.js';
 import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome } from '../js/util.js';
-import { gerarMensagem, gerarConvite, TONS } from '../js/mensagens.js';
+import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
-import { MODELOS, vencimentoCiclo, textoRegra } from '../js/combinados.js';
+import { MODELOS, vencimentoCiclo, textoRegra, valorDividido } from '../js/combinados.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -267,7 +267,7 @@ function restante(p) { return round2(Math.max(0, Number(p.valor) - Number(p.valo
 
 async function telaPainel() {
   render(casca('<p class="carregando">Carregando suas cobranças…</p>', { ativo: 'inicio' }));
-  await sb.rpc('gerar_cobrancas');
+  await sb.rpc('gerar_cobrancas_v2');
   const [resC, resK] = await Promise.all([
     sb.from('cobrancas').select('*, participantes(*)').neq('status', 'cancelada').order('criado_em', { ascending: false }),
     sb.from('combinados').select('*, combinado_membros(*)').neq('status', 'encerrado').order('criado_em', { ascending: false })
@@ -318,7 +318,7 @@ async function telaPainel() {
       <span class="icone ${COR_ICONE[k.modelo]}">${ICONE[k.modelo]}</span>
       <span class="grow"><span class="titulo-item">${esc(k.titulo)}</span>
         <span class="muted pequeno" style="display:block">${esc(textoRegra(k))}</span>
-        <span class="muted pequeno" style="display:block">${toparam} de ${ms.length} toparam${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
+        <span class="muted pequeno" style="display:block">${k.vagas ? `${ms.length} de ${k.vagas} vagas` : `${toparam} de ${ms.length} toparam`}${k.entrada_aberta ? ' · lista aberta' : ''}${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
   };
   const nome = primeiroNome(estado.perfil.nome);
   render(casca(`
@@ -443,8 +443,16 @@ function telaFormCombinado(modelo) {
         <div class="campo"><label for="titulo">Nome do combinado</label><input id="titulo" maxlength="60" placeholder="${textos.ph}"></div>
         ${especifico}
       </div>
+      <div class="card pilha-p">
+        <label class="check"><input type="checkbox" id="aberta" ${modelo !== 'viagem' ? 'checked' : ''}> ${modelo === 'carona' ? 'Oferecer vagas por link (cada um garante a sua)' : 'Lista aberta por link (cada um coloca o nome)'}</label>
+        <div id="bloco-aberta" class="pilha">
+          <div class="campo"><label for="vagas">${modelo === 'carona' ? 'Vagas no carro (sem contar você)' : 'Limite de pessoas'}</label><input id="vagas" inputmode="numeric" value="${modelo === 'carona' ? 4 : 10}">${estado.perfil.plano === 'gratis' ? '<span class="ajuda">No plano grátis, até 10 pessoas por lista.</span>' : ''}</div>
+          ${modelo === 'carona' ? '<label class="check"><input type="checkbox" id="dividir" checked> Dividir o custo do carro entre quem entrar (o preço cai a cada pessoa)</label><span class="ajuda" id="dividir-ajuda"></span>' : ''}
+          ${modelo === 'vaquinha' ? '<span class="ajuda" id="vaq-ajuda"></span>' : ''}
+        </div>
+      </div>
       <div class="card pilha">
-        <fieldset class="pilha-p" style="border: 0; padding: 0; margin: 0"><legend style="font-weight: 600; margin-bottom: 6px">Quem participa</legend>
+        <fieldset class="pilha-p" style="border: 0; padding: 0; margin: 0"><legend style="font-weight: 600; margin-bottom: 6px" id="leg-pessoas">Quem participa</legend>
           <div id="pessoas" class="pilha-p">${linhasPessoasHTML(f.pessoas, 'Pessoa')}</div>
           <button type="button" class="btn sec peq" id="add-pessoa" style="align-self: flex-start">${ICONE.mais}Adicionar pessoa</button>
         </fieldset>
@@ -501,6 +509,29 @@ function telaFormCombinado(modelo) {
     }
     const d = $('#descricao');
     k.descricao = d && d.value.trim() ? d.value.trim() : null;
+    const aberta = $('#aberta').checked;
+    k.entrada_aberta = aberta;
+    k.valor_modo = 'fixo'; k.custo_base = null; k.incluir_organizador = true; k.vagas = null;
+    if (aberta) {
+      let vagas = Math.round(parseValor($('#vagas').value));
+      if (!(vagas >= 1)) vagas = modelo === 'carona' ? 4 : 10;
+      k.vagas = Math.min(vagas, estado.perfil.plano === 'gratis' ? 10 : 60);
+      if (modelo === 'carona' && $('#dividir') && $('#dividir').checked) {
+        const base = (f.calc && f.calc.custo_total) || (f.calcExterno && f.calcExterno.custo_total);
+        if (base) {
+          k.valor_modo = 'dividir'; k.custo_base = round2(base);
+          k.incluir_organizador = $('#incluir') ? $('#incluir').checked : true;
+          k.valor_por_pessoa = valorDividido(k, Math.max(1, pessoas.length));
+        }
+      }
+      if (modelo === 'vaquinha' && app.querySelector('input[name=modo]:checked').value === 'meta') {
+        const meta = parseValor($('#meta').value);
+        if (meta > 0) {
+          k.valor_modo = 'dividir'; k.custo_base = round2(meta); k.incluir_organizador = $('#incluir').checked;
+          k.valor_por_pessoa = valorDividido(k, Math.max(1, pessoas.length));
+        }
+      }
+    }
     return { k, pessoas };
   };
 
@@ -534,12 +565,25 @@ function telaFormCombinado(modelo) {
       $('#bloco-incluir').hidden = modo !== 'meta';
       $('#bloco-fixo').hidden = modo !== 'fixo';
     }
+    const aberta = $('#aberta').checked;
+    $('#bloco-aberta').hidden = !aberta;
+    $('#leg-pessoas').textContent = aberta ? 'Já quer incluir alguém? (opcional)' : 'Quem participa';
     const { k, pessoas } = montar();
+    if ($('#dividir-ajuda')) $('#dividir-ajuda').textContent = k.valor_modo === 'dividir' ? '' : 'Para dividir, preencha "Calcular pelo custo do carro" acima. Sem isso, vale o valor fixo por pessoa.';
+    if ($('#vaq-ajuda')) $('#vaq-ajuda').textContent = k.valor_modo === 'dividir' ? 'O valor total é dividido entre quem entrar. Você cobra quando fechar a lista.' : 'Quem entrar já recebe o Pix do valor fixo.';
     const ok = k.valor_por_pessoa > 0 && (k.regra === 'unico' ? !!k.prazo : !!k.inicio) && (modelo !== 'viagem' || k.parcelas >= 1);
     if (!ok) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha os valores para ver o resumo do combinado.</span>'; return; }
-    const linhas = [['Regra', textoRegra(k)], ['Participantes', String(pessoas.length)]];
-    if (k.regra === 'recorrente' && !k.parcelas) linhas.push([k.frequencia === 'semanal' ? 'Você recebe por semana' : 'Você recebe por mês', brl(k.valor_por_pessoa * pessoas.length)]);
-    else linhas.push(['Total a receber', brl(k.valor_por_pessoa * pessoas.length * (k.parcelas || 1))]);
+    let linhas;
+    if (k.valor_modo === 'dividir') {
+      linhas = [['Custo a dividir', brl(k.custo_base)], ['Por pessoa com 1 na lista', brl(valorDividido(k, 1))]];
+      if (k.vagas > 1) linhas.push([`Por pessoa com ${k.vagas} na lista`, brl(valorDividido(k, k.vagas))]);
+      linhas.push(['Quanto mais gente', 'mais barato']);
+    } else {
+      const n = k.entrada_aberta ? (k.vagas || pessoas.length) : pessoas.length;
+      linhas = [['Regra', textoRegra(k)], [k.entrada_aberta ? 'Com a lista cheia' : 'Participantes', `${n} pessoa${n === 1 ? '' : 's'}`]];
+      if (k.regra === 'recorrente' && !k.parcelas) linhas.push([k.frequencia === 'semanal' ? 'Você recebe por semana' : 'Você recebe por mês', brl(k.valor_por_pessoa * n)]);
+      else linhas.push(['Total a receber', brl(k.valor_por_pessoa * n * (k.parcelas || 1))]);
+    }
     $('#resumo').innerHTML = `${linhas.slice(0, -1).map(([a, b]) => `<div class="lin"><span>${a}</span><span style="text-align:right">${esc(b)}</span></div>`).join('')}<div class="lin total"><span>${linhas[linhas.length - 1][0]}</span><span>${linhas[linhas.length - 1][1]}</span></div>`;
   };
 
@@ -572,7 +616,7 @@ function telaFormCombinado(modelo) {
     const titulo = $('#titulo').value.trim();
     const { k, pessoas } = montar();
     if (!titulo) { msg.textContent = 'Dê um nome para o combinado.'; return; }
-    if (!pessoas.length) { msg.textContent = 'Adicione pelo menos uma pessoa.'; return; }
+    if (!pessoas.length && !k.entrada_aberta) { msg.textContent = 'Adicione pelo menos uma pessoa, ou abra a lista por link.'; return; }
     if (modelo === 'viagem' && !(k.parcelas >= 1 && k.parcelas <= 60)) { msg.textContent = 'Informe de 1 a 60 parcelas.'; return; }
     if (!(k.valor_por_pessoa > 0)) { msg.textContent = 'Informe o valor.'; return; }
     if (k.regra === 'unico' ? !k.prazo : !k.inicio) { msg.textContent = 'Escolha a data.'; return; }
@@ -581,29 +625,44 @@ function telaFormCombinado(modelo) {
     btn.disabled = true; btn.textContent = 'Criando…';
     const { data: novo, error } = await sb.from('combinados').insert(k).select().single();
     if (error) { btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(error); return; }
-    const { error: e2 } = await sb.from('combinado_membros').insert(pessoas.map((p) => ({ ...p, combinado_id: novo.id })));
-    if (e2) {
-      await sb.from('combinados').delete().eq('id', novo.id);
-      btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(e2); return;
+    if (pessoas.length) {
+      const { error: e2 } = await sb.from('combinado_membros').insert(pessoas.map((p) => ({ ...p, combinado_id: novo.id })));
+      if (e2) {
+        await sb.from('combinados').delete().eq('id', novo.id);
+        btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(e2); return;
+      }
     }
-    await sb.rpc('gerar_cobrancas');
-    toast('Combinado criado! Agora mande para cada um topar.');
+    if (novo.valor_modo === 'dividir') await sb.rpc('recalcular_valores', { p_combinado: novo.id });
+    await sb.rpc('gerar_cobrancas_v2');
+    toast(novo.entrada_aberta ? 'Lista aberta! Agora mande o link no grupo.' : 'Combinado criado! Agora mande para cada um topar.');
     go(`/k/${novo.id}`);
   });
 }
 
 async function telaCombinado(id) {
   render(casca('<p class="carregando">Carregando…</p>', { voltar: '/' }));
-  await sb.rpc('gerar_cobrancas');
-  const [rk, rc] = await Promise.all([
-    sb.from('combinados').select('*, combinado_membros(*)').eq('id', id).maybeSingle(),
-    sb.from('cobrancas').select('id, titulo, ciclo, vencimento, status, valor_total, participantes(status)').eq('combinado_id', id).order('ciclo', { ascending: false })
-  ]);
-  if (rk.error) throw rk.error;
-  const k = rk.data;
+  const carregar = async () => {
+    await sb.rpc('gerar_cobrancas_v2');
+    const [rk, rc] = await Promise.all([
+      sb.from('combinados').select('*, combinado_membros(*)').eq('id', id).maybeSingle(),
+      sb.from('cobrancas').select('id, titulo, ciclo, vencimento, status, valor_total, participantes(status)').eq('combinado_id', id).order('ciclo', { ascending: false })
+    ]);
+    if (rk.error) throw rk.error;
+    if (rk.data) rk.data.combinado_membros.sort((a, b) => a.criado_em.localeCompare(b.criado_em));
+    return { k: rk.data, ciclos: rc.data || [] };
+  };
+  const inicial = await carregar();
+  const k = inicial.k;
   if (!k) { render(casca('<div class="card pilha"><h2>Combinado não encontrado</h2><a class="btn" href="#/">Voltar ao início</a></div>', { voltar: '/' })); return; }
-  const ciclos = rc.data || [];
-  k.combinado_membros.sort((a, b) => a.criado_em.localeCompare(b.criado_em));
+  let ciclos = inicial.ciclos;
+  const recarregar = async () => {
+    const r = await carregar();
+    if (!r.k) { go('/'); return; }
+    Object.assign(k, r.k);
+    ciclos = r.ciclos;
+    desenhar();
+  };
+  const linkLista = () => `${location.origin}/g/?t=${k.entrada_token}`;
   const abertos = new Set();
   const linkTopo = (m) => `${location.origin}/topo/?t=${m.token}`;
   const conviteDe = (m) => gerarConvite({ tom: k.tom, nome: m.nome, titulo: k.titulo, regra: textoRegra(k, m.valor), link: linkTopo(m), plano: estado.perfil.plano });
@@ -613,6 +672,25 @@ async function telaCombinado(id) {
     const n = (ciclos.length ? Math.max(...ciclos.map((c) => c.ciclo || 0)) : 0) + 1;
     if (k.parcelas && n > k.parcelas) return null;
     return vencimentoCiclo(k.inicio, k.frequencia, n);
+  };
+
+  const listaHTML = (ms) => {
+    if (k.status === 'encerrado') return '';
+    const temLista = k.entrada_aberta || k.vagas || k.valor_modo === 'dividir';
+    if (!temLista) return '<button type="button" class="btn sec peq" data-acao="abrirlista" style="align-self: flex-start">Abrir lista por link</button>';
+    const div = ms.length + (k.incluir_organizador ? 1 : 0);
+    const pct = k.vagas ? Math.min(100, Math.round((ms.length / k.vagas) * 100)) : 0;
+    return `<div class="card destaque pilha-p">
+      <div class="linha-flex entre"><h2>${k.modelo === 'carona' ? 'Vagas' : 'Lista'}</h2><span class="tag ${k.entrada_aberta ? 'pago' : 'neutra'}">${k.entrada_aberta ? 'Aberta' : 'Fechada'}</span></div>
+      <p><strong>${k.vagas ? `${ms.length} de ${k.vagas} preenchidas` : `${ms.length} na lista`}</strong></p>
+      ${k.vagas ? `<div class="ocupacao" aria-hidden="true"><span style="width: ${pct}%"></span></div>` : ''}
+      ${k.valor_modo === 'dividir' ? `<p class="muted pequeno">Custo de ${brl(k.custo_base)} dividido por ${div}: ${brl(k.valor_por_pessoa)} cada.${k.vagas && k.vagas > ms.length ? ` Com todas as vagas: ${brl(valorDividido(k, k.vagas))}.` : ''}</p>` : ''}
+      ${k.entrada_aberta ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiarlista">Copiar link</button></div>` : ''}
+      <div class="acoes">
+        ${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? '<button type="button" class="btn lima peq" data-acao="fechar-cobrar">Fechar lista e cobrar</button>' : ''}
+        ${k.entrada_aberta ? '<button type="button" class="btn sec peq" data-acao="fecharlista">Fechar lista</button>' : '<button type="button" class="btn sec peq" data-acao="abrirlista">Reabrir lista</button>'}
+      </div>
+    </div>`;
   };
 
   const desenhar = () => {
@@ -650,7 +728,8 @@ async function telaCombinado(id) {
         <div class="card escuro"><p class="muted pequeno">Toparam</p><p class="numero" style="color: var(--lima)">${toparam} de ${ms.length}</p></div>
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
-      <p class="muted pequeno">O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.</p>
+      ${listaHTML(ms)}
+      <p class="muted pequeno">${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? 'Quando você fechar a lista, o app calcula o valor final e cria a cobrança de cada um.' : 'O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.'}</p>
       ${k.status === 'ativo' ? `<div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(k.tom, 'tomk')}</div>` : ''}
       <section class="pilha-p" aria-label="Participantes"><h2>Participantes</h2>${ms.map(cartao).join('')}
         ${k.status !== 'encerrado' ? `<form id="add" class="card pilha-p" novalidate>
@@ -687,7 +766,7 @@ async function telaCombinado(id) {
       if (e1) { toast(traduzErro(e1), 'erro'); return; }
       k.combinado_membros.push(m);
       toast(`${primeiroNome(nome)} entrou no combinado.`);
-      desenhar();
+      if (k.valor_modo === 'dividir') { await sb.rpc('recalcular_valores', { p_combinado: k.id }); await recarregar(); } else desenhar();
     });
   };
 
@@ -719,7 +798,27 @@ async function telaCombinado(id) {
       if (!window.confirm(`Tirar ${m.nome} do combinado? As próximas cobranças não vão incluir essa pessoa.`)) return;
       const { error: e1 } = await sb.from('combinado_membros').update({ ativo: false }).eq('id', m.id);
       if (e1) { toast(traduzErro(e1), 'erro'); return; }
-      m.ativo = false; desenhar();
+      m.ativo = false;
+      if (k.valor_modo === 'dividir') { await sb.rpc('recalcular_valores', { p_combinado: k.id }); await recarregar(); } else desenhar();
+    } else if (acao === 'divulgar') {
+      const texto = gerarDivulgacao({ modelo: k.modelo, titulo: k.titulo, regra: textoRegra(k), vagas: k.vagas, dividir: k.valor_modo === 'dividir', link: linkLista(), plano: estado.perfil.plano });
+      window.open(linkWhatsApp('', texto), '_blank', 'noopener');
+    } else if (acao === 'copiarlista') {
+      const ok = await copiar(linkLista());
+      toast(ok ? 'Link da lista copiado.' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
+    } else if (acao === 'abrirlista' || acao === 'fecharlista') {
+      const { error: e5 } = await sb.from('combinados').update({ entrada_aberta: acao === 'abrirlista' }).eq('id', k.id);
+      if (e5) { toast(traduzErro(e5), 'erro'); return; }
+      toast(acao === 'abrirlista' ? 'Lista aberta. Mande o link no grupo!' : 'Lista fechada. Ninguém novo entra.');
+      await recarregar();
+    } else if (acao === 'fechar-cobrar') {
+      const ativos = k.combinado_membros.filter((x) => x.ativo).length;
+      if (!ativos) { toast('Ninguém entrou na lista ainda.', 'erro'); return; }
+      if (!window.confirm(`Fechar a lista com ${ativos} pessoa${ativos === 1 ? '' : 's'}? Cada um vai pagar ${brl(k.valor_por_pessoa)}.`)) return;
+      const { error: e6 } = await sb.from('combinados').update({ entrada_aberta: false }).eq('id', k.id);
+      if (e6) { toast(traduzErro(e6), 'erro'); return; }
+      await recarregar();
+      toast('Lista fechada! Agora envie a cobrança para cada um.');
     } else if (acao === 'pausar' || acao === 'retomar' || acao === 'encerrar') {
       if (acao === 'encerrar' && !window.confirm('Encerrar este combinado? Não serão criadas novas cobranças. As que já existem continuam.')) return;
       const status = acao === 'pausar' ? 'pausado' : acao === 'retomar' ? 'ativo' : 'encerrado';
@@ -1106,7 +1205,7 @@ function somarDias(iso, dias) {
 
 async function telaResumo() {
   render(casca('<p class="carregando">Montando seu resumo…</p>', { ativo: 'resumo' }));
-  await sb.rpc('gerar_cobrancas');
+  await sb.rpc('gerar_cobrancas_v2');
   const [rc, rk] = await Promise.all([
     sb.from('cobrancas').select('id, tipo, modelo, titulo, vencimento, status, combinado_id, ciclo, participantes(id, nome, telefone, valor, valor_pago, status, pago_em)').neq('status', 'cancelada'),
     sb.from('combinados').select('id, modelo, titulo, regra, frequencia, inicio, prazo, parcelas, valor_por_pessoa, status, combinado_membros(ativo, valor)').eq('status', 'ativo')

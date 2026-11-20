@@ -1,5 +1,5 @@
 // Regras dos combinados, usadas pelo app e pela página do "Topo".
-import { brl, dataBR } from './util.js';
+import { brl, dataBR, esc } from './util.js';
 
 export const MODELOS = {
   carona: { nome: 'Carona fixa', curto: 'Carona' },
@@ -23,6 +23,12 @@ export function vencimentoCiclo(inicioISO, frequencia, ciclo) {
   return dt.toISOString().slice(0, 10);
 }
 
+// Valor por pessoa em listas que dividem o custo, para N participantes
+export function valorDividido(cb, participantes) {
+  const div = Math.max(1, participantes + (cb.incluir_organizador ? 1 : 0));
+  return Math.round((Number(cb.custo_base) / div) * 100) / 100;
+}
+
 export function textoRegra(cb, valor) {
   const v = brl(valor ?? cb.valor_por_pessoa);
   if (cb.regra === 'unico') return `${v} por pessoa${cb.prazo ? `, até ${dataBR(cb.prazo)}` : ''}`;
@@ -30,4 +36,22 @@ export function textoRegra(cb, valor) {
     return `${v} por pessoa em ${cb.parcelas} parcela${cb.parcelas === 1 ? '' : 's'} ${cb.frequencia === 'semanal' ? 'semanais' : 'mensais'}, a partir de ${dataBR(cb.inicio)}`;
   }
   return `${v} por pessoa, ${cb.frequencia === 'semanal' ? 'toda semana' : 'todo mês'}, a partir de ${dataBR(cb.inicio)}`;
+}
+
+// Bloco de ocupação da lista (páginas públicas): barra + nomes + vagas livres
+export function ocupacaoHTML(g, { escuro = false } = {}) {
+  const ocupadas = Number(g.ocupadas ?? g.pessoas ?? 0);
+  const limite = Number(g.limite || 0);
+  const nomes = Array.isArray(g.nomes) ? g.nomes : [];
+  const livres = limite ? Math.max(0, limite - ocupadas) : 0;
+  const pct = limite ? Math.min(100, Math.round((ocupadas / limite) * 100)) : 0;
+  const rotulo = g.vagas
+    ? `${ocupadas} de ${g.vagas} vaga${g.vagas === 1 ? '' : 's'} preenchida${ocupadas === 1 ? '' : 's'}`
+    : `${ocupadas} pessoa${ocupadas === 1 ? '' : 's'} na lista`;
+  return `<div class="card ${escuro ? 'escuro' : ''} pilha-p">
+    <div class="linha-flex entre"><h2>${g.modelo === 'carona' ? 'Ocupação do carro' : 'Quem já está'}</h2><strong>${esc(rotulo)}</strong></div>
+    ${g.vagas ? `<div class="ocupacao" aria-hidden="true"><span style="width: ${pct}%"></span></div>` : ''}
+    <div class="nomes">${nomes.map((n) => `<span>${esc(n)}</span>`).join('')}${g.vagas ? Array.from({ length: Math.min(livres, 12) }, () => '<span class="vaga">vaga livre</span>').join('') : ''}</div>
+    ${g.modelo === 'carona' && g.incluir_organizador ? '<p class="muted pequeno">Fora o motorista.</p>' : ''}
+  </div>`;
 }
