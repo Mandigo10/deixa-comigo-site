@@ -39,7 +39,7 @@ export const CALCULADORAS = [
           ['Custo total do mês', brl(total)], ['Dividido entre', `${pessoas} pessoa${pessoas === 1 ? '' : 's'}`], ['Por pessoa, por dia', brl(porPessoaDia)]],
         destaque: ['Cada um paga por mês', brl(porPessoaMes)],
         frase: `Sem dividir, você gasta ${brl(total)} por mês para levar todo mundo.`,
-        combinar: { modelo: 'carona', valor: round2(porPessoaMes), frequencia: 'mensal', titulo: 'Carona para o trabalho',
+        combinar: { modelo: 'carona', valor: round2(porPessoaMes), frequencia: 'mensal', titulo: 'Carona para o trabalho', rotulo: 'por pessoa, por mês',
           calc: { km_dia: n(v.km_dia), dias: n(v.dias_mes), consumo: n(v.consumo), preco_litro: n(v.preco_litro), desgaste_km: n(v.manutencao_km), pedagio_dia: n(v.pedagio_dia), estacionamento_dia: n(v.estacionamento_dia), km_total: round2(km), combustivel: round2(combustivel), desgaste: round2(manut), pedagio: round2(pedagio), estacionamento: round2(estac), custo_total: round2(total), pessoas_divisao: pessoas, motorista_incluido: true, periodo: 'mês' } }
       };
     }
@@ -69,7 +69,7 @@ export const CALCULADORAS = [
         linhas: [['Custos fixos do mês', brl(fixos)], ['Custos por diária', brl(fixos / diarias + n(v.transporte))], ['Sua renda por diária', brl(n(v.renda) / diarias)], ['Reserva', brl(preco - base)], ['Valor da sua hora', brl(preco / Math.max(1, n(v.horas)))]],
         destaque: ['Cobre por diária', brl(preco)],
         frase: `Abaixo de ${brl(minimo)} por diária você paga para trabalhar.`,
-        combinar: { modelo: 'mensalidade', valor: round2(preco), frequencia: 'semanal', titulo: 'Diária de limpeza' }
+        combinar: { modelo: 'mensalidade', valor: round2(preco), frequencia: 'semanal', titulo: 'Diária de limpeza', rotulo: 'por diária' }
       };
     }
   },
@@ -130,7 +130,7 @@ export const CALCULADORAS = [
         linhas,
         destaque: ['Cobre por dia', brl(diaria)],
         frase: `Uma obra de 10 dias deve sair por pelo menos ${brl(diaria * 10)} só de mão de obra.`,
-        combinar: { modelo: 'mensalidade', valor: round2(diaria), frequencia: 'semanal', titulo: 'Obra' }
+        combinar: { modelo: 'mensalidade', valor: round2(diaria), frequencia: 'semanal', titulo: 'Obra', rotulo: 'por dia' }
       };
     }
   },
@@ -188,7 +188,7 @@ export const CALCULADORAS = [
         linhas: [['Seu tempo por vez', brl(n(v.horas) * n(v.valor_hora))], ['Carro por vez', brl(n(v.km) * n(v.custo_km))], ...(n(v.gastos) ? [['Outros gastos por vez', brl(n(v.gastos))]] : []), ['Cada ajuda vale', brl(porVez)], ['Em um ano', brl(mes * 12)]],
         destaque: ['Você doa por mês', brl(mes)],
         frase: 'Ajudar é ótimo. Mas, se virou rotina, dá para combinar pelo menos os custos, sem climão.',
-        combinar: { modelo: 'mensalidade', valor: round2(n(v.km) * n(v.custo_km) * n(v.vezes) + n(v.gastos) * n(v.vezes)), frequencia: 'mensal', titulo: 'Ajuda do mês' }
+        combinar: { modelo: 'mensalidade', valor: round2(n(v.km) * n(v.custo_km) * n(v.vezes) + n(v.gastos) * n(v.vezes)), frequencia: 'mensal', titulo: 'Ajuda do mês', rotulo: 'por mês, só os custos do carro e gastos' }
       };
     }
   }
@@ -223,7 +223,10 @@ export function montarCalculadora(container, calc, aoCombinar) {
       <div class="lin total"><span>${esc(r.destaque[0])}</span><span>${esc(r.destaque[1])}</span></div>`;
     container.querySelector('#calc-frase').textContent = r.frase || '';
     const btn = container.querySelector('#calc-combinar');
-    if (btn) btn.hidden = !(r.combinar && r.combinar.valor > 0);
+    if (btn) {
+      btn.hidden = !(r.combinar && r.combinar.valor > 0);
+      if (r.combinar) btn.textContent = `Combinar ${brl(r.combinar.valor)}${r.combinar.rotulo ? ' ' + r.combinar.rotulo : ''}`;
+    }
   };
   form.addEventListener('input', atualizar);
   form.addEventListener('submit', (e) => e.preventDefault());
