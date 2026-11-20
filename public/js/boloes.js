@@ -3,13 +3,13 @@ import { sb } from './sb.js';
 import { esc, brl, dataBR, primeiroNome } from './util.js';
 
 export const LOTERIAS = {
-  megasena: { nome: 'Mega-Sena', min: 6, max: 20, de: 1, ate: 60, premio: [6, 5, 4], faixas: { 6: 'Sena', 5: 'Quina', 4: 'Quadra' } },
-  lotofacil: { nome: 'Lotofácil', min: 15, max: 20, de: 1, ate: 25, premio: [15, 14, 13, 12, 11] },
-  quina: { nome: 'Quina', min: 5, max: 15, de: 1, ate: 80, premio: [5, 4, 3, 2], faixas: { 5: 'Quina', 4: 'Quadra', 3: 'Terno', 2: 'Duque' } },
-  lotomania: { nome: 'Lotomania', min: 50, max: 50, de: 0, ate: 99, premio: [20, 19, 18, 17, 16, 15, 0] },
-  duplasena: { nome: 'Dupla Sena', min: 6, max: 15, de: 1, ate: 50, premio: [6, 5, 4, 3], duplo: true, faixas: { 6: 'Sena', 5: 'Quina', 4: 'Quadra', 3: 'Terno' } },
-  diadesorte: { nome: 'Dia de Sorte', min: 7, max: 15, de: 1, ate: 31, premio: [7, 6, 5, 4], obs: 'O Mês da Sorte não entra na conferência automática: confira no canhoto.' },
-  timemania: { nome: 'Timemania', min: 10, max: 10, de: 1, ate: 80, premio: [7, 6, 5, 4, 3], obs: 'O Time do Coração não entra na conferência automática: confira no canhoto.' }
+  megasena: { simples: 6, nome: 'Mega-Sena', min: 6, max: 20, de: 1, ate: 60, premio: [6, 5, 4], faixas: { 6: 'Sena', 5: 'Quina', 4: 'Quadra' } },
+  lotofacil: { simples: 15, nome: 'Lotofácil', min: 15, max: 20, de: 1, ate: 25, premio: [15, 14, 13, 12, 11] },
+  quina: { simples: 5, nome: 'Quina', min: 5, max: 15, de: 1, ate: 80, premio: [5, 4, 3, 2], faixas: { 5: 'Quina', 4: 'Quadra', 3: 'Terno', 2: 'Duque' } },
+  lotomania: { simples: 50, nome: 'Lotomania', min: 50, max: 50, de: 0, ate: 99, premio: [20, 19, 18, 17, 16, 15, 0] },
+  duplasena: { simples: 6, nome: 'Dupla Sena', min: 6, max: 15, de: 1, ate: 50, premio: [6, 5, 4, 3], duplo: true, faixas: { 6: 'Sena', 5: 'Quina', 4: 'Quadra', 3: 'Terno' } },
+  diadesorte: { simples: 7, nome: 'Dia de Sorte', min: 7, max: 15, de: 1, ate: 31, premio: [7, 6, 5, 4], obs: 'O Mês da Sorte não entra na conferência automática: confira no canhoto.' },
+  timemania: { simples: 10, nome: 'Timemania', min: 10, max: 10, de: 1, ate: 80, premio: [7, 6, 5, 4, 3], obs: 'O Time do Coração não entra na conferência automática: confira no canhoto.' }
 };
 
 // Conferência automática: plano pago, ou liberada para todos até o fim do lançamento.
@@ -140,15 +140,31 @@ export function urlFoto(caminho) {
 }
 
 // ---------- conferência ----------
+function comb(n, k) {
+  if (k < 0 || k > n) return 0;
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = (r * (n - k + i)) / i;
+  return Math.round(r);
+}
+// Um jogo com mais dezenas vale por várias apostas simples (ex.: 7 dezenas na Mega = 7 apostas de 6).
+// Para cada faixa f: C(acertos, f) * C(dezenas - acertos, simples - f) prêmios.
 export function conferir(jogo, r, lot) {
   const L = LOTERIAS[lot];
   const conta = (sorteadas) => { const s = new Set(sorteadas || []); return jogo.filter((n) => s.has(n)).length; };
   const sorteios = L.duplo && r.dezenas2 ? [r.dezenas, r.dezenas2] : [r.dezenas];
+  const n = jogo.length;
   return sorteios.map((dz, i) => {
     const acertos = conta(dz);
-    const premiado = L.premio.includes(acertos);
-    const faixa = premiado ? (r.rateio || []).find((x) => x.acertos === acertos && (x.sorteio == null || x.sorteio === i + 1)) : null;
-    return { sorteio: L.duplo ? i + 1 : null, acertos, premiado, valor: faixa ? Number(faixa.valor) : null };
+    const faixas = [];
+    L.premio.forEach((f) => {
+      const qtd = L.min === L.max ? (f === acertos ? 1 : 0) : comb(acertos, f) * comb(n - acertos, L.simples - f);
+      if (qtd > 0) {
+        const fx = (r.rateio || []).find((x) => x.acertos === f && (x.sorteio == null || x.sorteio === i + 1));
+        faixas.push({ acertos: f, qtd, valor: fx ? Number(fx.valor) : null });
+      }
+    });
+    const valor = faixas.reduce((a, x) => a + (x.valor || 0) * x.qtd, 0);
+    return { sorteio: L.duplo ? i + 1 : null, acertos, premiado: faixas.length > 0, faixas, valor: valor || null };
   });
 }
 
@@ -185,11 +201,14 @@ export function conferenciaHTML(jogos, r, lot) {
       ${manchete}
     </div>
     <ol class="jogos">${linhas.map((l, i) => {
-      const tags = l.res.map((x) => `<span class="tag ${x.premiado ? 'pago' : 'neutra'}">${x.sorteio ? `${x.sorteio}º: ` : ''}${x.acertos} ${x.acertos === 1 ? 'acerto' : 'acertos'}${x.premiado ? ` · ${esc(nomeFaixa(lot, x.acertos))}${x.valor ? ` · ${brl(x.valor)}` : ''}` : ''}</span>`).join(' ');
+      const tags = l.res.map((x) => {
+        const fx = x.faixas.map((f) => `${f.qtd > 1 ? `${f.qtd}× ` : ''}${esc(nomeFaixa(lot, f.acertos))}`).join(' + ');
+        return `<span class="tag ${x.premiado ? 'pago' : 'neutra'}">${x.sorteio ? `${x.sorteio}º: ` : ''}${x.acertos} ${x.acertos === 1 ? 'acerto' : 'acertos'}${x.premiado ? ` · ${fx}${x.valor ? ` · ${brl(x.valor)}` : ''}` : ''}</span>`;
+      }).join(' ');
       const acertadas = L.duplo && r.dezenas2 ? [...r.dezenas, ...r.dezenas2] : r.dezenas;
       return `<li><span class="linha-flex entre"><span class="muted pequeno">Jogo ${i + 1}</span><span>${tags}</span></span>${bolasHTML(l.jogo, { acertos: acertadas })}</li>`;
     }).join('')}</ol>
-    <p class="muted pequeno">Valores por aposta segundo o rateio oficial. Jogos com mais dezenas podem ganhar em mais de uma faixa: confirme o valor final na lotérica ou no app Loterias CAIXA.${L.obs ? ` ${L.obs}` : ''}</p>`;
+    <p class="muted pequeno">Valores calculados pelo rateio oficial, contando que jogos com mais dezenas valem por várias apostas simples. O valor final é o pago pela CAIXA: confirme na lotérica ou no app Loterias CAIXA.${L.obs ? ` ${L.obs}` : ''}</p>`;
 }
 
 // ---------- mensagens ----------
