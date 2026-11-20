@@ -1,7 +1,7 @@
 // Página do convite: a pessoa vê as regras do combinado e toca em "Topo".
 import { sb } from '../js/sb.js';
 import { esc, brl, dataBR, toast, primeiroNome, copiar, linkWhatsApp } from '../js/util.js';
-import { MODELOS, textoRegra, ocupacaoHTML } from '../js/combinados.js';
+import { MODELOS, textoRegra, ocupacaoHTML, categoriaDe } from '../js/combinados.js';
 
 const app = document.getElementById('app');
 const token = new URLSearchParams(location.search).get('t') || '';
@@ -32,6 +32,11 @@ function detalhesHTML(k) {
   if (k.modelo === 'vaquinha' && d.meta) {
     linhas.push(['Valor total', brl(d.meta)]);
     linhas.push(['Dividido entre', `${d.pessoas_divisao} pessoas`]);
+  }
+  if (d.categoria === 'venda') {
+    linhas.push(['Compra', d.produto || k.titulo]);
+    linhas.push(['Valor total', brl(d.total)]);
+    linhas.push(['Parcelas', `${k.parcelas}x de ${brl(k.valor)}`]);
   }
   if (k.modelo === 'viagem' && d.total_por_pessoa) {
     linhas.push(['Total por pessoa', brl(d.total_por_pessoa)]);
@@ -69,9 +74,9 @@ async function iniciar() {
 
   app.innerHTML = casca(`
     <div class="pilha-p">
-      <p class="muted">Oi, ${esc(primeiroNome(k.membro))}! ${esc(k.organizador)} te chamou para um combinado:</p>
+      <p class="muted">Oi, ${esc(primeiroNome(k.membro))}! ${categoriaDe(k) === 'venda' ? `${esc(k.organizador)} registrou a sua compra:` : `${esc(k.organizador)} te chamou para um combinado:`}</p>
       <h1>${esc(k.titulo)}</h1>
-      <span class="tag neutra" style="align-self: flex-start">${esc(MODELOS[k.modelo] ? MODELOS[k.modelo].nome : 'Combinado')}</span>
+      <span class="tag neutra" style="align-self: flex-start">${esc(MODELOS[categoriaDe(k)] ? MODELOS[categoriaDe(k)].nome : 'Combinado')}</span>
     </div>
     <div class="card escuro pilha-p">
       <p class="muted pequeno">Sua parte${aguardandoFechar || (k.valor_modo === 'dividir' && k.aberto) ? ' (por enquanto)' : ''}</p>

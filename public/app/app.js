@@ -3,7 +3,8 @@ import { sb } from '../js/sb.js';
 import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome } from '../js/util.js';
 import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
-import { MODELOS, vencimentoCiclo, textoRegra, valorDividido } from '../js/combinados.js';
+import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
+import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -20,6 +21,8 @@ const ICONE = {
   mensalidade: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 15h3"/></svg>',
   inicio: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
   conta: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  venda: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14l-1 13H6z"/><path d="M9 7a3 3 0 0 1 6 0"/></svg>',
+  cartela: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>',
   resumo: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
   calc: '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 18.5h8"/></svg>',
   casa: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-5h6v5"/></svg>',
@@ -29,8 +32,8 @@ const ICONE = {
   mais: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   voltar: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
 };
-const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima' };
-function tipoDe(c) { return c.modelo || c.tipo; }
+const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima', venda: 'pessego', cartela: 'lima' };
+function tipoDe(c) { return categoriaDe(c); }
 const NOME_STATUS = { pendente: 'Pendente', avisou_pago: 'Avisou que pagou', pago: 'Pago' };
 
 // ---------- estrutura ----------
@@ -92,6 +95,9 @@ const ROTAS = [
   [/^\/nova\/(carona|emprestimo|racha)$/, (t) => telaFormulario(t)],
   [/^\/combinar\/(carona|vaquinha|viagem|mensalidade)$/, (m) => telaFormCombinado(m)],
   [/^\/k\/([0-9a-f-]{36})$/, (id) => telaCombinado(id)],
+  [/^\/vender$/, () => telaFormVenda()],
+  [/^\/cartela\/nova$/, () => telaFormCartela()],
+  [/^\/cartela\/([0-9a-f-]{36})$/, (id) => telaCartela(id)],
   [/^\/c\/([0-9a-f-]{36})$/, (id) => telaCobranca(id)],
   [/^\/conta$/, () => telaConta()],
   [/^\/resumo$/, () => telaResumo()],
@@ -268,16 +274,23 @@ function restante(p) { return round2(Math.max(0, Number(p.valor) - Number(p.valo
 async function telaPainel() {
   render(casca('<p class="carregando">Carregando suas cobranças…</p>', { ativo: 'inicio' }));
   await sb.rpc('gerar_cobrancas_v2');
+  let resCartelas = null;
   const [resC, resK] = await Promise.all([
     sb.from('cobrancas').select('*, participantes(*)').neq('status', 'cancelada').order('criado_em', { ascending: false }),
-    sb.from('combinados').select('*, combinado_membros(*)').neq('status', 'encerrado').order('criado_em', { ascending: false })
-  ]);
+    sb.from('combinados').select('*, combinado_membros(*)').neq('status', 'encerrado').order('criado_em', { ascending: false }),
+    sb.from('cartelas').select('id, titulo, quantidade, status, cartela_itens(status, valor)').order('criado_em', { ascending: false })
+  ]).then((r) => { resCartelas = r[2]; return r.slice(0, 2); });
   if (resC.error) throw resC.error;
   if (resK.error) throw resK.error;
+  const cartelas = (resCartelas && resCartelas.data) || [];
   const cobrancas = resC.data || [];
   const combinados = resK.data || [];
   let aReceber = 0; let recebido = 0;
   const tarefas = [];
+  cartelas.forEach((ct) => {
+    const avis = (ct.cartela_itens || []).filter((i) => i.status === 'avisou_pago').length;
+    if (avis) tarefas.push({ href: `#/cartela/${ct.id}`, titulo: ct.titulo, txt: `${avis} ${avis === 1 ? 'item com aviso' : 'itens com aviso'} de "já paguei" na cartela. Confira e confirme.`, tag: 'Confirmar' });
+  });
   combinados.filter((k) => k.status === 'ativo').forEach((k) => {
     (k.combinado_membros || []).filter((m) => m.ativo && !m.convite_enviado_em).forEach((m) => {
       tarefas.push({ href: `#/k/${k.id}`, titulo: k.titulo, txt: `Mandar o combinado para ${esc(primeiroNome(m.nome))} topar`, tag: 'Convidar' });
@@ -315,8 +328,8 @@ async function telaPainel() {
     const ms = (k.combinado_membros || []).filter((m) => m.ativo);
     const toparam = ms.filter((m) => m.aceito_em).length;
     return `<li><a class="item" href="#/k/${k.id}">
-      <span class="icone ${COR_ICONE[k.modelo]}">${ICONE[k.modelo]}</span>
-      <span class="grow"><span class="titulo-item">${esc(k.titulo)}</span>
+      <span class="icone ${COR_ICONE[categoriaDe(k)]}">${ICONE[categoriaDe(k)]}</span>
+      <span class="grow"><span class="titulo-item">${esc(k.titulo)}${categoriaDe(k) === 'venda' && ms[0] ? ` · ${esc(primeiroNome(ms[0].nome))}` : ''}</span>
         <span class="muted pequeno" style="display:block">${esc(textoRegra(k))}</span>
         <span class="muted pequeno" style="display:block">${k.vagas ? `${ms.length} de ${k.vagas} vagas` : `${toparam} de ${ms.length} toparam`}${k.entrada_aberta ? ' · lista aberta' : ''}${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
   };
@@ -335,6 +348,12 @@ async function telaPainel() {
       ${combinados.length ? `<ul class="lista">${combinados.map(itemCombinado).join('')}</ul>` : `
         <div class="card vazio pilha-p"><p><strong>Combine antes, cobre sem climão.</strong></p><p>Carona da semana, vaquinha do churrasco, viagem parcelada, pelada do mês: todo mundo topa as regras e o app cobra na data.</p><a class="btn" href="#/nova" style="align-self: center">Criar o primeiro combinado</a></div>`}
     </section>
+    ${cartelas.length ? `<section class="pilha-p" aria-labelledby="t-cart"><h2 id="t-cart">Cartelas</h2><ul class="lista">${cartelas.map((ct) => {
+      const its = ct.cartela_itens || [];
+      const rec = its.filter((i) => i.status === 'pago').reduce((s2, i) => s2 + Number(i.valor), 0);
+      const avis = its.filter((i) => i.status === 'avisou_pago').length;
+      return `<li><a class="item" href="#/cartela/${ct.id}"><span class="icone lima">${ICONE.cartela}</span><span class="grow"><span class="titulo-item">${esc(ct.titulo)}</span><span class="muted pequeno" style="display:block">${its.length} de ${ct.quantidade} escolhidos · ${brl(rec)} recebidos${ct.status === 'fechada' ? ' · fechada' : ''}</span></span>${avis ? `<span class="tag avisou_pago">${avis} avisaram</span>` : ''}</a></li>`;
+    }).join('')}</ul></section>` : ''}
     ${abertas.length ? `<section class="pilha-p" aria-labelledby="t-abertas"><h2 id="t-abertas">Cobranças em aberto</h2>
       <ul class="lista">${abertas.map(itemCobranca).join('')}</ul></section>` : ''}
     ${concluidas.length ? `<details class="pilha-p"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Concluídas (${concluidas.length})</summary><ul class="lista">${concluidas.map(itemCobranca).join('')}</ul></details>` : ''}
@@ -353,6 +372,12 @@ function telaNova() {
     ${opcao('/combinar/vaquinha', 'vaquinha', 'Vaquinha', 'Churrasco, festa, presente: cada um paga antes, ninguém adianta nada.')}
     ${opcao('/combinar/viagem', 'viagem', 'Viagem parcelada', 'O valor da viagem dividido em parcelas até a data.')}
     ${opcao('/combinar/mensalidade', 'mensalidade', 'Mensalidade do grupo', 'Pelada, quadra, república, streaming dividido.')}
+    <div class="pilha-p" style="margin-top: 16px">
+      <h2>Para quem vende</h2>
+      <p class="muted">Troque o caderno pelo app: ele cobra na data e mostra quem pagou.</p>
+    </div>
+    ${opcao('/vender', 'venda', 'Venda parcelada (carnê)', 'Perfume, roupa, cosméticos: o cliente paga em parcelas e o app cobra cada mês.')}
+    ${opcao('/cartela/nova', 'cartela', 'Cartela de números ou nomes', 'A grade do papel no celular: cada um escolhe o seu e você vê quem pagou.')}
     <div class="pilha-p" style="margin-top: 16px">
       <h2>Cobrar o que já passou</h2>
       <p class="muted">Para o que não foi combinado antes.</p>
@@ -665,7 +690,7 @@ async function telaCombinado(id) {
   const linkLista = () => `${location.origin}/g/?t=${k.entrada_token}`;
   const abertos = new Set();
   const linkTopo = (m) => `${location.origin}/topo/?t=${m.token}`;
-  const conviteDe = (m) => gerarConvite({ tom: k.tom, nome: m.nome, titulo: k.titulo, regra: textoRegra(k, m.valor), link: linkTopo(m), plano: estado.perfil.plano });
+  const conviteDe = (m) => gerarConvite({ tom: k.tom, nome: m.nome, titulo: k.titulo, regra: textoRegra(k, m.valor), link: linkTopo(m), plano: estado.perfil.plano, categoria: categoriaDe(k) });
 
   const proxima = () => {
     if (k.regra === 'unico' || k.status !== 'ativo') return null;
@@ -720,7 +745,7 @@ async function telaCombinado(id) {
     };
     render(casca(`
       <div class="pilha-p">
-        <div class="linha-flex"><span class="icone ${COR_ICONE[k.modelo]}">${ICONE[k.modelo]}</span><span class="tag neutra">${MODELOS[k.modelo].nome}</span>${k.status !== 'ativo' ? `<span class="tag pendente">${k.status === 'pausado' ? 'Pausado' : 'Encerrado'}</span>` : ''}</div>
+        <div class="linha-flex"><span class="icone ${COR_ICONE[categoriaDe(k)]}">${ICONE[categoriaDe(k)]}</span><span class="tag neutra">${MODELOS[categoriaDe(k)].nome}</span>${k.status !== 'ativo' ? `<span class="tag pendente">${k.status === 'pausado' ? 'Pausado' : 'Encerrado'}</span>` : ''}</div>
         <h1>${esc(k.titulo)}</h1>
         <p class="muted">${esc(textoRegra(k))}${k.descricao ? ` · ${esc(k.descricao)}` : ''}</p>
       </div>
@@ -1172,6 +1197,313 @@ async function telaCobranca(id) {
   desenhar();
 }
 
+// ---------- venda parcelada (carnê) ----------
+function telaFormVenda() {
+  const f = { tom: 'leve' };
+  render(casca(`
+    <div class="pilha-p"><h1>Venda parcelada</h1><p class="muted">Registre a venda uma vez. O app cobra cada parcela na data e você vê quem pagou.</p></div>
+    <form id="f" class="pilha" novalidate>
+      <div class="card pilha">
+        <div class="grade-2">
+          <div class="campo"><label for="cliente">Cliente</label><input id="cliente" maxlength="60" placeholder="Nome"></div>
+          <div class="campo"><label for="tel">WhatsApp</label><input id="tel" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 98765-4321"></div>
+        </div>
+        <div class="campo"><label for="produto">O que foi vendido</label><input id="produto" maxlength="50" placeholder="Ex.: Perfume Malbec 100 ml"></div>
+        <div class="grade-2">
+          <div class="campo"><label for="total">Valor total (R$)</label><input id="total" inputmode="decimal" placeholder="Ex.: 300,00"></div>
+          <div class="campo"><label for="parcelas">Parcelas</label><input id="parcelas" inputmode="numeric" value="3"></div>
+        </div>
+        <div class="campo"><label for="inicio">Primeira parcela em</label><input id="inicio" type="date" min="${hojeISO()}" value="${proximoDia(30)}"><span class="ajuda">As outras vencem no mesmo dia dos meses seguintes.</span></div>
+        <div class="campo"><label for="descricao">Observação (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: entregue em 20/11"></div>
+      </div>
+      <div id="resumo" class="calc" aria-live="polite"></div>
+      <div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(f.tom)}</div>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco lima" type="submit">Registrar venda</button>
+    </form>`, { voltar: '/nova' }));
+  ligarTons('tom', (t) => { f.tom = t; });
+  const ler = () => {
+    const total = parseValor($('#total').value);
+    const parcelas = Math.round(parseValor($('#parcelas').value));
+    return { total, parcelas, valor: total > 0 && parcelas > 0 ? round2(total / parcelas) : 0 };
+  };
+  const atualizar = () => {
+    const r = ler();
+    if (!(r.valor > 0)) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha o valor e as parcelas para ver o carnê.</span>'; return; }
+    const datas = Array.from({ length: Math.min(r.parcelas, 6) }, (_, i) => dataBR(vencimentoCiclo($('#inicio').value || hojeISO(), 'mensal', i + 1)));
+    $('#resumo').innerHTML = `<div class="lin"><span>Parcelas</span><span>${r.parcelas}x de ${brl(r.valor)}</span></div>
+      <div class="lin"><span>Vencimentos</span><span style="text-align:right">${datas.join(', ')}${r.parcelas > 6 ? '…' : ''}</span></div>
+      <div class="lin total"><span>Total</span><span>${brl(r.valor * r.parcelas)}</span></div>`;
+  };
+  $('#f').addEventListener('input', atualizar);
+  atualizar();
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('#msg'); msg.textContent = '';
+    const cliente = $('#cliente').value.trim();
+    const produto = $('#produto').value.trim();
+    const r = ler();
+    if (!cliente) { msg.textContent = 'Diga o nome da cliente.'; return; }
+    if (!produto) { msg.textContent = 'Diga o que foi vendido.'; return; }
+    if (!(r.total > 0)) { msg.textContent = 'Informe o valor total.'; return; }
+    if (!(r.parcelas >= 1 && r.parcelas <= 60)) { msg.textContent = 'Informe de 1 a 60 parcelas.'; return; }
+    if (!$('#inicio').value) { msg.textContent = 'Escolha a data da primeira parcela.'; return; }
+    const btn = $('#f button[type=submit]'); btn.disabled = true; btn.textContent = 'Registrando…';
+    const { data: novo, error } = await sb.from('combinados').insert({
+      modelo: 'viagem', titulo: produto, regra: 'recorrente', frequencia: 'mensal', parcelas: r.parcelas,
+      valor_por_pessoa: r.valor, inicio: $('#inicio').value, tom: f.tom,
+      descricao: $('#descricao').value.trim() || null,
+      detalhes: { categoria: 'venda', produto, total: round2(r.total) }
+    }).select().single();
+    if (error) { btn.disabled = false; btn.textContent = 'Registrar venda'; msg.textContent = traduzErro(error); return; }
+    const { error: e2 } = await sb.from('combinado_membros').insert({ combinado_id: novo.id, nome: cliente, telefone: soDigitos($('#tel').value) || null });
+    if (e2) { await sb.from('combinados').delete().eq('id', novo.id); btn.disabled = false; btn.textContent = 'Registrar venda'; msg.textContent = traduzErro(e2); return; }
+    await sb.rpc('gerar_cobrancas_v2');
+    toast('Venda registrada! Mande o carnê para a cliente confirmar.');
+    go(`/k/${novo.id}`);
+  });
+}
+
+// ---------- cartelas de números ou nomes ----------
+function telaFormCartela() {
+  const gratis = estado.perfil.plano === 'gratis';
+  render(casca(`
+    <div class="pilha-p"><h1>Nova cartela</h1><p class="muted">A grade do papel, no celular. Cada pessoa escolhe pelo link e paga com Pix, e você também pode lançar o que vendeu no papel.</p></div>
+    <form id="f" class="pilha" novalidate>
+      <div class="card pilha">
+        <div class="campo"><label for="titulo">Nome da cartela</label><input id="titulo" maxlength="60" placeholder="Ex.: Chá de fraldas da Ana"></div>
+        <div class="campo"><label for="descricao">Para que é (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: ajudar com o enxoval"></div>
+        <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">A cartela tem</span>
+          <div class="tons" role="radiogroup" aria-label="Tipo da cartela">
+            <label class="check"><input type="radio" name="modo" value="numeros" checked> Números</label>
+            <label class="check"><input type="radio" name="modo" value="nomes"> Nomes</label>
+          </div></div>
+        <div class="campo" id="bloco-qtd"><label for="qtd">Quantos números</label><input id="qtd" inputmode="numeric" value="50"><span class="ajuda">${gratis ? 'De 2 a 100 no plano grátis.' : 'De 2 a 200.'}</span></div>
+        <div class="campo" id="bloco-nomes" hidden><label for="nomes">Nomes, um por linha</label><textarea id="nomes" placeholder="Ana&#10;Bia&#10;Carla"></textarea><span class="ajuda" id="conta-nomes"></span></div>
+      </div>
+      <div class="card pilha">
+        <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">Valor</span>
+          <div class="pilha-p" role="radiogroup" aria-label="Como é o valor">
+            <label class="check"><input type="radio" name="vmodo" value="fixo" checked> Valor fixo por número</label>
+            <label class="check"><input type="radio" name="vmodo" value="numero"> O número escolhido é o valor (escolheu 37, paga R$ 37)</label>
+          </div></div>
+        <div class="campo"><label for="valor" id="rot-valor">Valor de cada um (R$)</label><input id="valor" inputmode="decimal" value="10,00"></div>
+        <div class="grade-2">
+          <div class="campo"><label for="prazo">Pagar até (opcional)</label><input id="prazo" type="date" min="${hojeISO()}"></div>
+          <div class="campo"><label for="maxp">Máximo por pessoa</label><input id="maxp" inputmode="numeric" value="20"></div>
+        </div>
+      </div>
+      <div id="resumo" class="calc" aria-live="polite"></div>
+      <p class="aviso">${esc(AVISO_LEGAL)}</p>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco lima" type="submit">Criar cartela</button>
+    </form>`, { voltar: '/nova' }));
+  const ler = () => {
+    const modo = app.querySelector('input[name=modo]:checked').value;
+    const vmodo = app.querySelector('input[name=vmodo]:checked').value;
+    const nomes = $('#nomes').value.split('\n').map((x) => x.trim()).filter(Boolean).map((x) => x.slice(0, 30));
+    const quantidade = modo === 'nomes' ? nomes.length : Math.round(parseValor($('#qtd').value));
+    return { modo, vmodo, nomes, quantidade, valor: round2(parseValor($('#valor').value)), maxp: Math.round(parseValor($('#maxp').value)) };
+  };
+  const atualizar = () => {
+    const r = ler();
+    $('#bloco-qtd').hidden = r.modo !== 'numeros';
+    $('#bloco-nomes').hidden = r.modo !== 'nomes';
+    $('#conta-nomes').textContent = `${r.nomes.length} nome${r.nomes.length === 1 ? '' : 's'}`;
+    $('#rot-valor').textContent = r.vmodo === 'numero' ? 'Multiplicador (R$ por unidade do número)' : 'Valor de cada um (R$)';
+    if (!(r.quantidade >= 2) || !(r.valor > 0)) { $('#resumo').innerHTML = '<span style="color:#C9C5D6">Preencha a quantidade e o valor.</span>'; return; }
+    const cheio = r.vmodo === 'numero' ? r.valor * (r.quantidade * (r.quantidade + 1)) / 2 : r.valor * r.quantidade;
+    $('#resumo').innerHTML = `<div class="lin"><span>${r.modo === 'nomes' ? 'Nomes' : 'Números'}</span><span>${r.quantidade}</span></div>
+      <div class="lin"><span>Valor</span><span>${esc(textoValor({ ...r, valor_modo: r.vmodo }))}</span></div>
+      <div class="lin total"><span>Se completar tudo</span><span>${brl(cheio)}</span></div>`;
+  };
+  $('#f').addEventListener('input', atualizar);
+  $('#f').addEventListener('change', atualizar);
+  atualizar();
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('#msg'); msg.textContent = '';
+    const r = ler();
+    const titulo = $('#titulo').value.trim();
+    const limite = gratis ? 100 : 200;
+    if (!titulo) { msg.textContent = 'Dê um nome para a cartela.'; return; }
+    if (!(r.quantidade >= 2 && r.quantidade <= limite)) { msg.textContent = `A cartela precisa ter de 2 a ${limite} ${r.modo === 'nomes' ? 'nomes' : 'números'}.`; return; }
+    if (!(r.valor > 0)) { msg.textContent = 'Informe o valor.'; return; }
+    const btn = $('#f button[type=submit]'); btn.disabled = true;
+    const { data: nova, error } = await sb.from('cartelas').insert({
+      titulo, descricao: $('#descricao').value.trim() || null, modo: r.modo, quantidade: r.quantidade,
+      nomes: r.modo === 'nomes' ? r.nomes : [], valor_modo: r.vmodo, valor: r.valor,
+      prazo: $('#prazo').value || null, max_por_pessoa: Math.min(Math.max(r.maxp || 20, 1), r.quantidade)
+    }).select().single();
+    btn.disabled = false;
+    if (error) { msg.textContent = traduzErro(error); return; }
+    toast('Cartela criada! Mande o link no grupo.');
+    go(`/cartela/${nova.id}`);
+  });
+}
+
+async function telaCartela(id) {
+  render(casca('<p class="carregando">Carregando…</p>', { voltar: '/' }));
+  const carregar = async () => {
+    const [rc, ri] = await Promise.all([
+      sb.from('cartelas').select('*').eq('id', id).maybeSingle(),
+      sb.from('cartela_itens').select('*').eq('cartela_id', id).order('numero')
+    ]);
+    if (rc.error) throw rc.error;
+    if (ri.error) throw ri.error;
+    return { c: rc.data, itens: ri.data || [] };
+  };
+  let { c, itens } = await carregar();
+  if (!c) { render(casca('<div class="card pilha"><h2>Cartela não encontrada</h2><a class="btn" href="#/">Voltar ao início</a></div>', { voltar: '/' })); return; }
+  let sel = null;
+  const recarregar = async () => { const r = await carregar(); c = r.c; itens = r.itens; desenhar(); };
+  const linkCartela = () => `${location.origin}/n/?t=${c.entrada_token}`;
+  const linkComprador = (tk) => `${location.origin}/n/?c=${tk}`;
+  const porNumero = () => new Map(itens.map((i) => [i.numero, i]));
+  const grupos = () => {
+    const m = new Map();
+    itens.forEach((i) => {
+      const g = m.get(i.comprador_token) || { token: i.comprador_token, nome: i.nome, telefone: i.telefone, itens: [] };
+      g.itens.push(i); m.set(i.comprador_token, g);
+    });
+    return Array.from(m.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  };
+
+  const painelSel = () => {
+    if (sel == null) return '';
+    const it = porNumero().get(sel);
+    const r = esc(rotulo(c, sel));
+    if (!it) {
+      return `<form id="lancar" class="card pilha-p" style="border: 2px solid var(--ink)" novalidate>
+        <div class="linha-flex entre"><h3>${c.modo === 'nomes' ? '' : 'Número '}${r} · livre</h3><button type="button" class="btn texto peq" data-acao="fecharsel">Fechar</button></div>
+        <p class="muted pequeno">Vendeu no papel? Lance aqui. Valor: ${brl(valorDe(c, sel))}.</p>
+        <div class="grade-2">
+          <div class="campo"><label class="sr" for="l-nome">Nome</label><input id="l-nome" maxlength="60" placeholder="Nome"></div>
+          <div class="campo"><label class="sr" for="l-tel">WhatsApp</label><input id="l-tel" type="tel" inputmode="tel" maxlength="20" placeholder="WhatsApp (opcional)"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="l-pago"> Já pagou</label>
+        <button type="submit" class="btn peq" style="align-self: flex-start">Lançar</button>
+      </form>`;
+    }
+    const st = { reservado: 'Escolhido, não pago', avisou_pago: 'Avisou que pagou', pago: 'Pago' }[it.status];
+    return `<div class="card pilha-p" style="border: 2px solid var(--ink)">
+      <div class="linha-flex entre"><h3>${c.modo === 'nomes' ? '' : 'Número '}${r}</h3><button type="button" class="btn texto peq" data-acao="fecharsel">Fechar</button></div>
+      <p><strong>${esc(it.nome)}</strong>${it.telefone ? ` · ${esc(it.telefone)}` : ''}</p>
+      <p class="muted pequeno">${brl(it.valor)} · <span class="tag ${it.status === 'reservado' ? 'pendente' : it.status}">${st}</span></p>
+      <div class="acoes">
+        ${it.status !== 'pago' ? `<button type="button" class="btn ${it.status === 'avisou_pago' ? 'lima' : ''} peq" data-acao="pago" data-n="${it.numero}">${it.status === 'avisou_pago' ? 'Confirmar que recebi' : 'Marcar como pago'}</button>` : `<button type="button" class="btn sec peq" data-acao="pendente" data-n="${it.numero}">Voltar para não pago</button>`}
+        ${it.status !== 'pago' ? `<button type="button" class="btn sec peq" data-acao="cobrar" data-token="${it.comprador_token}">Cobrar no WhatsApp</button>` : ''}
+        <button type="button" class="btn perigo peq" data-acao="liberar" data-n="${it.numero}">Liberar</button>
+      </div>
+    </div>`;
+  };
+
+  const desenhar = () => {
+    const mapa = porNumero();
+    const pagos = itens.filter((i) => i.status === 'pago');
+    const avisaram = itens.filter((i) => i.status === 'avisou_pago').length;
+    const recebido = pagos.reduce((s, i) => s + Number(i.valor), 0);
+    const aReceber = itens.filter((i) => i.status !== 'pago').reduce((s, i) => s + Number(i.valor), 0);
+    const aberta = c.status === 'aberta';
+    const celulas = Array.from({ length: c.quantidade }, (_, k) => {
+      const n = k + 1; const it = mapa.get(n);
+      const cls = it ? it.status : 'livre';
+      const titulo = it ? `${rotulo(c, n)}: ${it.nome}` : `${rotulo(c, n)}: livre`;
+      return `<button type="button" class="num ${cls} ${sel === n ? 'selecionado' : ''}" data-n="${n}" aria-label="${esc(titulo)}" title="${esc(titulo)}">${esc(rotulo(c, n))}</button>`;
+    }).join('');
+    const gs = grupos();
+    render(casca(`
+      <div class="pilha-p">
+        <div class="linha-flex"><span class="icone lima">${ICONE.cartela}</span><span class="tag neutra">Cartela</span><span class="tag ${aberta ? 'pago' : 'neutra'}">${aberta ? 'Aberta' : 'Fechada'}</span></div>
+        <h1>${esc(c.titulo)}</h1>
+        <p class="muted">${esc(textoValor(c))}${c.prazo ? ` · pagar até ${dataBR(c.prazo)}` : ''}${c.descricao ? ` · ${esc(c.descricao)}` : ''}</p>
+      </div>
+      <div class="resumo">
+        <div class="card escuro"><p class="muted pequeno">Escolhidos</p><p class="numero" style="color: var(--lima)">${itens.length} de ${c.quantidade}</p></div>
+        <div class="card"><p class="muted pequeno">Recebido</p><p class="numero">${brl(recebido)}</p><p class="muted pequeno">a receber ${brl(aReceber)}</p></div>
+      </div>
+      ${avisaram ? `<div class="aviso">${avisaram} ${avisaram === 1 ? 'item com aviso' : 'itens com aviso'} de "já paguei". Toque nos roxos para conferir e confirmar.</div>` : ''}
+      ${aberta ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiar">Copiar link</button></div>` : ''}
+      <div class="legenda" aria-hidden="true"><span><i></i>Livre</span><span><i style="background: var(--amarelo-claro); border-color:#F1D98A"></i>Não pago</span><span><i style="background: var(--roxo-claro); border-color:#B9AEFF"></i>Avisou</span><span><i style="background: var(--verde-claro); border-color:#A6E3C0"></i>Pago</span></div>
+      <div class="grade-n ${c.modo === 'nomes' ? 'nomes-grade' : ''}" role="group" aria-label="Cartela">${celulas}</div>
+      <div id="painel-sel">${painelSel()}</div>
+      ${gs.length ? `<section class="pilha-p" aria-label="Por pessoa"><h2>Por pessoa</h2><ul class="lista">${gs.map((g) => {
+        const total = g.itens.reduce((s, i) => s + Number(i.valor), 0);
+        const falta = g.itens.filter((i) => i.status !== 'pago').reduce((s, i) => s + Number(i.valor), 0);
+        return `<li class="item"><span class="grow"><span class="titulo-item">${esc(g.nome)}</span>
+          <span class="muted pequeno" style="display:block">${g.itens.map((i) => esc(rotulo(c, i.numero))).join(', ')} · ${brl(total)}</span></span>
+          ${falta ? `<span class="acoes" style="justify-content:flex-end"><button type="button" class="btn sec peq" data-acao="cobrar" data-token="${g.token}">Cobrar</button><button type="button" class="btn peq" data-acao="pagotudo" data-token="${g.token}">Pagou</button></span>` : '<span class="tag pago">Pago</span>'}</li>`;
+      }).join('')}</ul></section>` : ''}
+      <div class="acoes" style="margin-top: 8px">
+        <button type="button" class="btn sec peq" data-acao="${aberta ? 'fechar' : 'abrir'}">${aberta ? 'Fechar cartela' : 'Reabrir cartela'}</button>
+        <button type="button" class="btn perigo peq" data-acao="apagar">Apagar cartela</button>
+      </div>
+      <p class="muted pequeno">${esc(AVISO_LEGAL)}</p>`, { voltar: '/' }));
+    const f = $('#lancar');
+    if (f) f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nome = $('#l-nome').value.trim();
+      if (nome.length < 2) { toast('Diga o nome.', 'erro'); return; }
+      const tel = soDigitos($('#l-tel').value) || null;
+      const pago = $('#l-pago').checked;
+      const existente = tel ? itens.find((i) => i.telefone === tel) : itens.find((i) => i.nome.toLowerCase() === nome.toLowerCase());
+      const novo = { cartela_id: c.id, numero: sel, nome, telefone: tel, valor: valorDe(c, sel), status: pago ? 'pago' : 'reservado', pago_em: pago ? new Date().toISOString() : null };
+      if (existente) novo.comprador_token = existente.comprador_token;
+      const { error: e1 } = await sb.from('cartela_itens').insert(novo);
+      if (e1) { toast(/duplicate|unique/i.test(e1.message) ? 'Esse número acabou de ser escolhido.' : traduzErro(e1), 'erro'); await recarregar(); return; }
+      toast('Lançado!'); sel = null; await recarregar();
+    });
+    const p = $('#painel-sel');
+    if (p && sel != null) p.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+
+  ouvinteTela = async (e) => {
+    const cel = e.target.closest('.num[data-n]');
+    if (cel) { sel = Number(cel.dataset.n); desenhar(); return; }
+    const b = e.target.closest('[data-acao]');
+    if (!b) return;
+    const acao = b.dataset.acao;
+    const n = Number(b.dataset.n);
+    if (acao === 'fecharsel') { sel = null; desenhar(); }
+    else if (acao === 'pago' || acao === 'pendente') {
+      const mud = acao === 'pago' ? { status: 'pago', pago_em: new Date().toISOString() } : { status: 'reservado', pago_em: null, avisou_pago_em: null };
+      const { error: e1 } = await sb.from('cartela_itens').update(mud).eq('cartela_id', c.id).eq('numero', n);
+      if (e1) { toast(traduzErro(e1), 'erro'); return; }
+      await recarregar();
+    } else if (acao === 'pagotudo') {
+      const { error: e2 } = await sb.from('cartela_itens').update({ status: 'pago', pago_em: new Date().toISOString() }).eq('cartela_id', c.id).eq('comprador_token', b.dataset.token).neq('status', 'pago');
+      if (e2) { toast(traduzErro(e2), 'erro'); return; }
+      toast('Marcado como pago.'); await recarregar();
+    } else if (acao === 'liberar') {
+      if (!window.confirm(`Liberar ${rotulo(c, n)}? Ele volta a ficar livre para outra pessoa.`)) return;
+      const { error: e3 } = await sb.from('cartela_itens').delete().eq('cartela_id', c.id).eq('numero', n);
+      if (e3) { toast(traduzErro(e3), 'erro'); return; }
+      sel = null; toast('Liberado.'); await recarregar();
+    } else if (acao === 'cobrar') {
+      const meus = itens.filter((i) => i.comprador_token === b.dataset.token);
+      const pend = meus.filter((i) => i.status !== 'pago');
+      const texto = mensagemCartela({ nome: meus[0].nome, titulo: c.titulo, itens: pend.map((i) => rotulo(c, i.numero)).join(', '), total: brl(pend.reduce((s, i) => s + Number(i.valor), 0)), link: linkComprador(b.dataset.token), plano: estado.perfil.plano });
+      window.open(linkWhatsApp(meus[0].telefone, texto), '_blank', 'noopener');
+    } else if (acao === 'divulgar') {
+      window.open(linkWhatsApp('', divulgacaoCartela({ titulo: c.titulo, valor: textoValor(c), link: linkCartela(), plano: estado.perfil.plano })), '_blank', 'noopener');
+    } else if (acao === 'copiar') {
+      const ok = await copiar(linkCartela());
+      toast(ok ? 'Link da cartela copiado.' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
+    } else if (acao === 'fechar' || acao === 'abrir') {
+      const { error: e4 } = await sb.from('cartelas').update({ status: acao === 'fechar' ? 'fechada' : 'aberta' }).eq('id', c.id);
+      if (e4) { toast(traduzErro(e4), 'erro'); return; }
+      await recarregar();
+    } else if (acao === 'apagar') {
+      if (!window.confirm('Apagar esta cartela e tudo que foi lançado nela? Isso não pode ser desfeito.')) return;
+      const { error: e5 } = await sb.from('cartelas').delete().eq('id', c.id);
+      if (e5) { toast(traduzErro(e5), 'erro'); return; }
+      toast('Cartela apagada.'); go('/');
+    }
+  };
+  app.addEventListener('click', ouvinteTela);
+  desenhar();
+}
+
 // ---------- calculadoras ----------
 function telaCalculadoras() {
   const cores = ['lima', 'roxo', 'pessego'];
@@ -1206,9 +1538,10 @@ function somarDias(iso, dias) {
 async function telaResumo() {
   render(casca('<p class="carregando">Montando seu resumo…</p>', { ativo: 'resumo' }));
   await sb.rpc('gerar_cobrancas_v2');
-  const [rc, rk] = await Promise.all([
-    sb.from('cobrancas').select('id, tipo, modelo, titulo, vencimento, status, combinado_id, ciclo, participantes(id, nome, telefone, valor, valor_pago, status, pago_em)').neq('status', 'cancelada'),
-    sb.from('combinados').select('id, modelo, titulo, regra, frequencia, inicio, prazo, parcelas, valor_por_pessoa, status, combinado_membros(ativo, valor)').eq('status', 'ativo')
+  const [rc, rk, rn] = await Promise.all([
+    sb.from('cobrancas').select('id, tipo, modelo, titulo, vencimento, status, combinado_id, ciclo, detalhes, participantes(id, nome, telefone, valor, valor_pago, status, pago_em)').neq('status', 'cancelada'),
+    sb.from('combinados').select('id, modelo, titulo, regra, frequencia, inicio, prazo, parcelas, valor_por_pessoa, status, detalhes, combinado_membros(ativo, valor)').eq('status', 'ativo'),
+    sb.from('cartela_itens').select('valor, status, nome, telefone, pago_em, cartelas(prazo)')
   ]);
   if (rc.error) throw rc.error;
   if (rk.error) throw rk.error;
@@ -1252,6 +1585,22 @@ async function telaResumo() {
     }
   });
 
+  ((rn && rn.data) || []).forEach((i) => {
+    if (i.status === 'pago') {
+      if (i.pago_em && new Date(i.pago_em).toISOString().slice(0, 7) === mesAtual) recebidoMes += Number(i.valor);
+      return;
+    }
+    const v = Number(i.valor);
+    aReceber += v;
+    porTipo.cartela = (porTipo.cartela || 0) + v;
+    const prazo = i.cartelas && i.cartelas.prazo;
+    const atr = prazo && prazo < hoje;
+    if (atr) atrasado += v;
+    const chave = soDigitos(i.telefone) || i.nome.trim().toLowerCase();
+    const pessoa = porPessoa.get(chave) || { nome: i.nome, total: 0, atrasado: 0, itens: 0, tipos: new Set(), proximo: null };
+    pessoa.total += v; if (atr) pessoa.atrasado += v; pessoa.itens += 1; pessoa.tipos.add('cartela');
+    porPessoa.set(chave, pessoa);
+  });
   combinados.filter((k) => k.regra === 'recorrente').forEach((k) => {
     const ativos = (k.combinado_membros || []).filter((m) => m.ativo);
     if (!ativos.length) return;
@@ -1263,7 +1612,7 @@ async function telaResumo() {
       const venc = vencimentoCiclo(k.inicio, k.frequencia, ciclo);
       if (venc > limite) break;
       previsto += porCiclo;
-      agenda.push({ data: venc, titulo: k.titulo, valor: porCiclo, href: `#/k/${k.id}`, futuro: true, tipo: k.modelo });
+      agenda.push({ data: venc, titulo: k.titulo, valor: porCiclo, href: `#/k/${k.id}`, futuro: true, tipo: categoriaDe(k) });
     }
   });
   agenda.sort((a, b) => a.data.localeCompare(b.data));

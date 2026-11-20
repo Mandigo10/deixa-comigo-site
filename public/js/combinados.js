@@ -5,8 +5,14 @@ export const MODELOS = {
   carona: { nome: 'Carona fixa', curto: 'Carona' },
   vaquinha: { nome: 'Vaquinha', curto: 'Vaquinha' },
   viagem: { nome: 'Viagem parcelada', curto: 'Viagem' },
-  mensalidade: { nome: 'Mensalidade do grupo', curto: 'Mensalidade' }
+  mensalidade: { nome: 'Mensalidade do grupo', curto: 'Mensalidade' },
+  venda: { nome: 'Venda parcelada', curto: 'Venda' }
 };
+
+// Categoria de exibição: vendas parceladas usam a estrutura de parcelas, marcadas nos detalhes
+export function categoriaDe(x) {
+  return (x && x.detalhes && x.detalhes.categoria) || (x && (x.modelo || x.tipo)) || '';
+}
 
 // Mesmo cálculo da função vencimento_ciclo do banco
 export function vencimentoCiclo(inicioISO, frequencia, ciclo) {
@@ -32,6 +38,10 @@ export function valorDividido(cb, participantes) {
 export function textoRegra(cb, valor) {
   const v = brl(valor ?? cb.valor_por_pessoa);
   if (cb.regra === 'unico') return `${v} por pessoa${cb.prazo ? `, até ${dataBR(cb.prazo)}` : ''}`;
+  if (cb.parcelas && categoriaDe(cb) === 'venda') {
+    const dia = Number(String(cb.inicio).slice(8, 10));
+    return `${cb.parcelas}x de ${v}, todo dia ${dia}, a partir de ${dataBR(cb.inicio)}`;
+  }
   if (cb.parcelas) {
     return `${v} por pessoa em ${cb.parcelas} parcela${cb.parcelas === 1 ? '' : 's'} ${cb.frequencia === 'semanal' ? 'semanais' : 'mensais'}, a partir de ${dataBR(cb.inicio)}`;
   }

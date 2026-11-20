@@ -16,7 +16,11 @@ export function gerarMensagem({ tipo, tom, momento, nome, valor, titulo, vencime
   let msg = '';
 
   if (momento === 'combinado') {
-    if (tipo === 'vaquinha') {
+    if (tipo === 'venda') {
+      if (tom === 'leve') msg = `Oi, ${n}! Passando para lembrar da ${titulo}: ${valor}${ate}. O Pix está aqui: ${link} Obrigada pela preferência!`;
+      else if (tom === 'neutro') msg = `Oi, ${n}. ${titulo}: ${valor}${vencimento ? `, vencimento ${vencimento}` : ''}. Pix: ${link}`;
+      else msg = `Oi, ${n}. A ${titulo} (${valor}) vence${vencimento ? ` em ${vencimento}` : ' agora'}. Peço que pague até a data. Pix: ${link}`;
+    } else if (tipo === 'vaquinha') {
       if (tom === 'leve') msg = `Oi, ${n}! Vaquinha de ${t}: cada um entra com ${valor}${ate}. Assim ninguém precisa adiantar nada. O Pix está aqui: ${link}`;
       else if (tom === 'neutro') msg = `Oi, ${n}. Vaquinha de ${t}: ${valor} por pessoa${vencimento ? `, até ${vencimento}` : ''}. Pix: ${link}`;
       else msg = `Oi, ${n}. Para a vaquinha de ${t} fechar, falta a sua parte: ${valor}${ate}. Pix: ${link}`;
@@ -87,10 +91,12 @@ export function gerarDivulgacao({ modelo, titulo, regra, vagas, dividir, link, p
 }
 
 // Convite para "topar" um combinado
-export function gerarConvite({ tom, nome, titulo, regra, link, plano }) {
+export function gerarConvite({ tom, nome, titulo, regra, link, plano, categoria }) {
   const n = primeiroNome(nome);
   let msg;
-  if (tom === 'leve') {
+  if (categoria === 'venda') {
+    msg = `Oi, ${n}! Registrei sua compra no Deixa Comigo: ${titulo}, ${regra}. Assim você recebe o Pix certinho em cada data. Toque em "Topo" para confirmar: ${link}`;
+  } else if (tom === 'leve') {
     msg = `Oi, ${n}! Pra gente nunca precisar ficar falando de dinheiro depois, coloquei nosso combinado no Deixa Comigo: ${titulo}, ${regra}. Dá uma olhada e, se estiver ok, toca em "Topo": ${link}`;
   } else if (tom === 'neutro') {
     msg = `Oi, ${n}. Organizei "${titulo}" no Deixa Comigo: ${regra}. As regras estão neste link; se concordar, toque em "Topo": ${link}`;

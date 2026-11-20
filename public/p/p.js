@@ -33,6 +33,10 @@ function extrato(d, c) {
     (det.gastos || []).forEach((g) => linhas.push([g.descricao, brl(g.valor)]));
     linhas.push(['Total', brl(det.total_gastos)]);
     linhas.push(['Dividido entre', `${det.pessoas_divisao} pessoas`]);
+  } else if (det.categoria === 'venda') {
+    linhas.push(['Compra', det.produto || c.titulo]);
+    linhas.push(['Valor total da compra', brl(det.total)]);
+    if (c.descricao) linhas.push(['Observação', c.descricao]);
   } else if (det.meta) {
     linhas.push(['Valor total da vaquinha', brl(det.meta)]);
     linhas.push(['Dividido entre', `${det.pessoas_divisao} pessoas`]);
@@ -61,7 +65,8 @@ async function iniciar() {
   }
   const devido = round2(Math.max(0, Number(c.valor) - Number(c.valor_pago || 0)));
   const credor = primeiroNome(c.credor);
-  const titulo = `${NOMES_TIPO[c.tipo]} · ${c.titulo}`;
+  const categoria = (c.detalhes && c.detalhes.categoria) || c.tipo;
+  const titulo = `${NOMES_TIPO[categoria] || 'Cobrança'} · ${c.titulo}`;
   document.title = `${c.titulo} · Deixa Comigo`;
 
   if (c.status === 'pago') {
