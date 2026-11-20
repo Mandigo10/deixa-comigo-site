@@ -1,0 +1,16 @@
+{
+  "name": "Deixa Comigo",
+  "short_name": "Deixa Comigo",
+  "description": "Cobre carona, empréstimo e racha sem climão.",
+  "lang": "pt-BR",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#F4F2FB",
+  "theme_color": "#16141F",
+  "icons": [
+    { "src": "/app/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/app/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/app/icone-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
