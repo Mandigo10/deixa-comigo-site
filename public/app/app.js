@@ -120,6 +120,7 @@ const ROTAS = [
   [/^\/c\/([0-9a-f-]{36})$/, (id) => telaCobranca(id)],
   [/^\/conta$/, () => telaConta()],
   [/^\/contatos$/, () => telaContatos()],
+  [/^\/agenda$/, () => telaAgenda()],
   [/^\/resumo$/, () => telaResumo()],
   [/^\/calc$/, () => telaCalculadoras()],
   [/^\/calc\/([a-z]+)$/, (id) => telaCalculadora(id)],
@@ -376,7 +377,7 @@ async function telaPainel() {
   };
   const nome = primeiroNome(estado.perfil.nome);
   render(casca(`
-    <h1>Oi, ${esc(nome)}!</h1>
+    <div class="linha-flex entre"><h1>Oi, ${esc(nome)}!</h1><a class="btn sec peq" href="#/agenda">🗓️ Agenda</a></div>
     <div class="resumo">
       <div class="card escuro"><p class="muted pequeno">A receber</p><p class="numero" style="color: var(--lima)">${brl(aReceber)}</p></div>
       <div class="card"><p class="muted pequeno">Já recebido</p><p class="numero">${brl(recebido)}</p></div>
@@ -2005,6 +2006,124 @@ async function telaBolao(id) {
   desenhar();
 }
 
+// ---------- agenda ----------
+const ICS_BASE = `${window.DXCMG_CONFIG.SUPABASE_URL}/functions/v1/agenda-ics?t=`;
+function somaDiasISO(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+const DIAS_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+function nomeDia(iso) {
+  const hoje = hojeISO();
+  if (iso === hoje) return 'Hoje';
+  if (iso === somaDiasISO(hoje, 1)) return 'Amanhã';
+  if (iso === somaDiasISO(hoje, -1)) return 'Ontem';
+  const d = new Date(iso + 'T12:00:00');
+  return `${DIAS_SEMANA[d.getDay()]}, ${dataBR(iso).slice(0, 5)}`;
+}
+
+async function telaAgenda() {
+  render(casca('<p class="carregando">Carregando a agenda…</p>', { voltar: '/' }));
+  const liberada = conferenciaLiberada(estado.perfil.plano);
+  let itens = []; let link = null; let editando = null; let mostrarLink = false;
+  const carregar = async () => {
+    const [ra, rl] = await Promise.all([
+      sb.rpc('minha_agenda_v2', { p_de: somaDiasISO(hojeISO(), -14), p_ate: somaDiasISO(hojeISO(), 90) }),
+      sb.from('agenda_links').select('token').maybeSingle()
+    ]);
+    if (ra.error) throw ra.error;
+    itens = (ra.data || []).sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || '')));
+    link = rl.data ? rl.data.token : null;
+  };
+  await carregar();
+  const hrefDe = (i) => ({ cobranca: `#/c/${i.ref}`, bolao: `#/bolao/${i.ref}`, cartela: `#/cartela/${i.ref}` })[i.tipo] || '';
+  const formHTML = (c) => `<form id="f-comp" class="card pilha" style="border: 2px solid var(--ink)" novalidate>
+      <h2>${c && c.ref ? 'Editar compromisso' : 'Novo compromisso'}</h2>
+      <div class="campo"><label for="c-tit">O que é</label><input id="c-tit" maxlength="80" placeholder="Ex.: Faxina na casa da Ana" value="${esc((c && c.titulo) || '')}"></div>
+      <div class="grade-2">
+        <div class="campo"><label for="c-data">Dia</label><input id="c-data" type="date" value="${(c && c.data) || hojeISO()}"></div>
+        <div class="campo"><label for="c-hora">Hora (opcional)</label><input id="c-hora" type="time" value="${c && c.hora ? String(c.hora).slice(0, 5) : ''}"></div>
+      </div>
+      <div class="campo"><label for="c-valor">Valor a receber (opcional)</label><input id="c-valor" inputmode="decimal" placeholder="R$ 0,00" value="${c && c.valor ? String(c.valor).replace('.', ',') : ''}"></div>
+      <div class="campo"><label for="c-nota">Anotação (opcional)</label><input id="c-nota" maxlength="300" value="${esc((c && c.detalhe) || '')}"></div>
+      <p id="c-msg" class="erro" role="alert"></p>
+      <div class="acoes"><button type="submit" class="btn">Salvar</button><button type="button" class="btn sec" data-acao="c-cancelar">Cancelar</button>
+      ${c && c.ref ? '<button type="button" class="btn texto" data-acao="c-feito">Marcar como feito</button><button type="button" class="btn perigo peq" data-acao="c-apagar">Apagar</button>' : ''}</div>
+    </form>`;
+  const desenhar = () => {
+    const hoje = hojeISO();
+    const semana = somaDiasISO(hoje, 7);
+    const receber7 = itens.filter((i) => i.data >= hoje && i.data <= semana && i.valor).reduce((s, i) => s + Number(i.valor), 0);
+    const atrasado = itens.filter((i) => i.data < hoje && i.tipo === 'cobranca').reduce((s, i) => s + Number(i.valor || 0), 0);
+    const dias = new Map();
+    itens.filter((i) => i.data >= hoje || i.tipo === 'cobranca').forEach((i) => { const k = i.data < hoje ? 'atrasado' : i.data; if (!dias.has(k)) dias.set(k, []); dias.get(k).push(i); });
+    const icone = { compromisso: '🗓️', cobranca: '💰', bolao: '🍀', cartela: '🔢' };
+    const urlIcs = link ? ICS_BASE + link : '';
+    render(casca(`
+      <div class="pilha-p"><h1>Agenda</h1><p class="muted">Seus compromissos e tudo o que tem para receber, dia a dia.</p></div>
+      ${liberada ? '' : '<div class="aviso">A agenda é do plano Plus.</div>'}
+      <div class="resumo">
+        <div class="card escuro"><p class="muted pequeno">A receber em 7 dias</p><p class="numero" style="color: var(--lima)">${brl(receber7)}</p></div>
+        <div class="card"><p class="muted pequeno">Atrasado</p><p class="numero">${brl(atrasado)}</p></div>
+      </div>
+      ${editando ? formHTML(editando) : '<button type="button" class="btn lima" data-acao="c-novo">Novo compromisso</button>'}
+      ${dias.size ? Array.from(dias.entries()).map(([k, lista]) => `<section class="pilha-p" aria-label="${k === 'atrasado' ? 'Atrasado' : esc(nomeDia(k))}">
+        <h2 style="font-size:1.05rem">${k === 'atrasado' ? 'Atrasado' : esc(nomeDia(k))}</h2>
+        <ul class="lista">${lista.map((i) => {
+          const corpo = `<span class="icone" aria-hidden="true" style="font-size:1.2rem">${icone[i.tipo]}</span><span class="grow"><span class="titulo-item">${i.hora ? `${String(i.hora).slice(0, 5)} · ` : ''}${esc(i.titulo)}</span>${i.detalhe ? `<span class="muted pequeno" style="display:block">${esc(i.detalhe)}${k === 'atrasado' ? ` · venceu ${dataBR(i.data)}` : ''}</span>` : ''}</span>${i.valor ? `<strong>${brl(i.valor)}</strong>` : ''}`;
+          return `<li>${i.tipo === 'compromisso' ? `<button type="button" class="item" data-acao="c-editar" data-ref="${i.ref}" style="width:100%; text-align:left; background:none; border:0; font:inherit; cursor:pointer">${corpo}</button>` : `<a class="item" href="${hrefDe(i)}">${corpo}</a>`}</li>`;
+        }).join('')}</ul></section>`).join('') : '<div class="card vazio"><p class="muted">Nada nos próximos dias. Crie um compromisso ou uma cobrança com data.</p></div>'}
+      <section class="card pilha-p" aria-labelledby="t-google">
+        <h2 id="t-google">Ver na Agenda do Google</h2>
+        <p class="muted pequeno">Seus compromissos e vencimentos aparecem sozinhos na Agenda do Google (ou do iPhone). O Google atualiza de tempos em tempos, então mudanças podem levar algumas horas para aparecer lá.</p>
+        ${!link ? '<button type="button" class="btn sec" data-acao="ics-criar" style="align-self:flex-start">Criar meu link de agenda</button>' : `
+          <div class="acoes"><button type="button" class="btn" data-acao="ics-copiar">Copiar link da agenda</button><a class="btn sec" href="${esc(urlIcs.replace(/^https:/, 'webcal:'))}">Abrir no iPhone/Outlook</a></div>
+          <details><summary style="cursor:pointer; font-weight:700; min-height:44px; display:flex; align-items:center">Como colocar no Google Agenda</summary>
+            <ol class="muted" style="margin:8px 0 0; padding-left:20px"><li>Toque em <strong>Copiar link da agenda</strong>.</li><li>No computador (ou no navegador do celular em modo computador), abra <strong>calendar.google.com</strong>.</li><li>Em <strong>Outras agendas</strong>, toque em <strong>+</strong> e depois em <strong>Do URL</strong>.</li><li>Cole o link e toque em <strong>Adicionar agenda</strong>. Pronto: ela aparece também no app do Google Agenda no celular.</li></ol></details>
+          <p class="muted pequeno">Esse link é só seu. Se mandou para alguém sem querer, <button type="button" class="btn texto peq" data-acao="ics-trocar" style="padding:0">troque o link</button>.</p>`}
+      </section>`, { voltar: '/' }));
+    const f = $('#f-comp');
+    if (f) {
+      $('#c-tit').focus();
+      f.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const titulo = $('#c-tit').value.trim();
+        const valor = $('#c-valor').value.trim() ? round2(parseValor($('#c-valor').value)) : null;
+        if (titulo.length < 2) { $('#c-msg').textContent = 'Diga o que é.'; return; }
+        if (!$('#c-data').value) { $('#c-msg').textContent = 'Escolha o dia.'; return; }
+        const dados = { titulo, data: $('#c-data').value, hora: $('#c-hora').value || null, valor, nota: $('#c-nota').value.trim() || null };
+        const { error } = editando.ref ? await sb.from('compromissos').update(dados).eq('id', editando.ref) : await sb.from('compromissos').insert(dados);
+        if (error) { $('#c-msg').textContent = traduzErro(error); return; }
+        if (!editando.ref) registrar('compromisso_criado', {});
+        editando = null; toast('Salvo na agenda.'); await carregar(); desenhar();
+      });
+    }
+  };
+  ouvinteTela = async (e) => {
+    const b = e.target.closest('[data-acao]');
+    if (!b) return;
+    const a = b.dataset.acao;
+    if (a === 'c-novo') { editando = {}; desenhar(); }
+    else if (a === 'c-editar') { editando = itens.find((i) => i.ref === b.dataset.ref) || null; desenhar(); window.scrollTo(0, 0); }
+    else if (a === 'c-cancelar') { editando = null; desenhar(); }
+    else if (a === 'c-feito' || a === 'c-apagar') {
+      if (a === 'c-apagar' && !window.confirm('Apagar este compromisso?')) return;
+      const { error } = a === 'c-feito' ? await sb.from('compromissos').update({ feito: true }).eq('id', editando.ref) : await sb.from('compromissos').delete().eq('id', editando.ref);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      editando = null; await carregar(); desenhar();
+    } else if (a === 'ics-criar' || a === 'ics-trocar') {
+      if (a === 'ics-trocar' && !window.confirm('Trocar o link? O link antigo para de funcionar e você precisa adicionar o novo no Google Agenda.')) return;
+      const novo = Array.from(crypto.getRandomValues(new Uint8Array(32)), (x) => x.toString(16).padStart(2, '0')).join('');
+      const { error } = link ? await sb.from('agenda_links').update({ token: novo }).eq('user_id', estado.sessao.user.id) : await sb.from('agenda_links').insert({ token: novo });
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      registrar('agenda_link', { acao: a });
+      link = novo; mostrarLink = true; desenhar();
+    } else if (a === 'ics-copiar') {
+      const ok = await copiar(ICS_BASE + link);
+      toast(ok ? 'Link copiado. Cole no Google Agenda em "Do URL".' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
+    }
+  };
+  app.addEventListener('click', ouvinteTela);
+  desenhar();
+}
+
 // ---------- contatos ----------
 async function guardarContatos(lista) {
   const novos = [];
@@ -2353,6 +2472,7 @@ function telaConta() {
       <p class="muted">${p.plano === 'gratis' ? 'Suas mensagens saem com "enviado por dx cmg". O Plus, sem marca e com lembretes ilimitados, chega em breve.' : 'Obrigado por apoiar o Deixa Comigo!'}</p>
     </div>
     <div class="card pilha-p">
+      <a class="btn sec" href="#/agenda">Agenda</a>
       <a class="btn sec" href="#/contatos">Meus contatos</a>
       <a class="btn sec" href="#/ajuda">Reportar problema ou dar ideia</a>
       <p class="pequeno" style="text-align: center"><a href="/termos/">Termos de uso</a> · <a href="/privacidade/">Política de privacidade</a></p>
