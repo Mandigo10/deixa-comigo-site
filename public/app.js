@@ -126,25 +126,30 @@
     escolherTom('leve');
   }
 
-  // Simulador de reajuste (página de autônomos)
+  // Simulador de reajuste (página de profissionais). Valores vêm dos data-* da seção #reajuste.
   var rateBtns = document.querySelectorAll('.rate-btn');
   if (rateBtns.length) {
+    var sec = document.getElementById('reajuste') || document.body;
+    var base = Number(sec.getAttribute('data-base') || 300);
+    var qtd = Number(sec.getAttribute('data-qtd') || 10);
+    var aluno = sec.getAttribute('data-aluno') || 'Ana';
+    var item = sec.getAttribute('data-item') || 'a mensalidade';
     var selR = rateBtns[1].getAttribute('style');
     var idleR = rateBtns[0].getAttribute('style');
-    var brl = function (n) { return 'R$ ' + n.toFixed(2).replace('.', ','); };
+    var brl = function (n) { return 'R$ ' + n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.'); };
     var escolherTaxa = function (p) {
       rateBtns.forEach(function (b) {
         var ativo = Number(b.getAttribute('data-rate')) === p;
         b.setAttribute('aria-pressed', String(ativo));
         b.setAttribute('style', ativo ? selR : idleR);
       });
-      var novo = Math.round(160 * (1 + p / 100) * 100) / 100;
-      var ganho = Math.round((novo - 160) * 4 * 100) / 100;
+      var novo = Math.round(base * (1 + p / 100) * 100) / 100;
+      var ganho = Math.round((novo - base) * qtd * 100) / 100;
       document.getElementById('rate-price').textContent = brl(novo);
       document.getElementById('rate-gain').textContent = '+ ' + brl(ganho);
       document.getElementById('rate-msg').textContent =
-        'Oi, Dona Marta! Tudo bem? Passando pra avisar com antecedência: a partir de janeiro, a diária passa de R$ 160,00 para ' +
-        brl(novo) + ' (reajuste anual de ' + p + '%). Muito obrigada pela confiança de sempre, é um prazer cuidar da sua casa!';
+        'Oi, ' + aluno + '! Tudo bem? Passando pra avisar com antecedência: a partir de janeiro, ' + item + ' passa de ' + brl(base) + ' para ' +
+        brl(novo) + ' (reajuste anual de ' + p + '%). Muito obrigado pela confiança de sempre, é um prazer acompanhar sua evolução!';
     };
     rateBtns.forEach(function (b) {
       b.addEventListener('click', function () { escolherTaxa(Number(b.getAttribute('data-rate'))); });

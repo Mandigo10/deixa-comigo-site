@@ -1,8 +1,9 @@
 // Deixa Comigo — app (versão 1)
 import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
-import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome, ativarMascaras, formatarTelefone, formatarChave } from '../js/util.js';
-import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS } from '../js/mensagens.js';
+import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome, ativarMascaras, formatarTelefone, formatarChave, valorPorExtenso } from '../js/util.js';
+import { nomePlano, LIBERADO_ATE } from '../js/planos.js';
+import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS, avisoReajuste, textoRecibo } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
@@ -34,10 +35,12 @@ const ICONE = {
   obra: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20v3H2zM4 18V11a8 8 0 0 1 16 0v7"/><path d="M10 4.5V9M14 4.5V9"/></svg>',
   coracao: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5.5 5.5 0 0 1 12 6a5.5 5.5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>',
   bolao: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="4.5"/><circle cx="16" cy="16" r="4.5"/><path d="M15.5 4.5l3 0M17 3v3M5 17h3M6.5 15.5v3"/><path d="M7 8h2M15 16h2"/></svg>',
+  aluno: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/><path d="M22 9v6"/></svg>',
+  recibo: '<svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>',
   mais: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   voltar: '<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'
 };
-const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima', venda: 'pessego', cartela: 'lima', bolao: 'roxo' };
+const COR_ICONE = { carona: 'lima', emprestimo: 'roxo', racha: 'pessego', vaquinha: 'pessego', viagem: 'roxo', mensalidade: 'lima', venda: 'pessego', cartela: 'lima', bolao: 'roxo', aluno: 'roxo' };
 function tipoDe(c) { return categoriaDe(c); }
 const NOME_STATUS = { pendente: 'Pendente', avisou_pago: 'Avisou que pagou', pago: 'Pago' };
 
@@ -122,6 +125,11 @@ const ROTAS = [
   [/^\/conta$/, () => telaConta()],
   [/^\/contatos$/, () => telaContatos()],
   [/^\/agenda$/, () => telaAgenda()],
+  [/^\/alunos$/, () => telaAlunos()],
+  [/^\/aluno\/novo$/, () => telaFormAluno()],
+  [/^\/alunos\/reajuste$/, () => telaReajuste()],
+  [/^\/recibo\/([0-9a-f-]{36})$/, (id) => telaRecibo(id)],
+  [/^\/relatorio(?:\/(\d{4}-\d{2}))?$/, (m) => telaRelatorio(m)],
   [/^\/resumo$/, () => telaResumo()],
   [/^\/calc$/, () => telaCalculadoras()],
   [/^\/calc\/([a-z]+)$/, (id) => telaCalculadora(id)],
@@ -308,7 +316,7 @@ function restante(p) { return round2(Math.max(0, Number(p.valor) - Number(p.valo
 
 async function telaPainel() {
   render(casca('<p class="carregando">Carregando suas cobranças…</p>', { ativo: 'inicio' }));
-  await sb.rpc('gerar_cobrancas_v2');
+  await sb.rpc('gerar_cobrancas_v3');
   let resCartelas = null;
   let resBoloes = null;
   const [resC, resK] = await Promise.all([
@@ -322,7 +330,9 @@ async function telaPainel() {
   const cartelas = (resCartelas && resCartelas.data) || [];
   const boloes = (resBoloes && resBoloes.data) || [];
   const cobrancas = resC.data || [];
-  const combinados = resK.data || [];
+  const todosCombinados = resK.data || [];
+  const alunos = todosCombinados.filter((k) => categoriaDe(k) === 'aluno');
+  const combinados = todosCombinados.filter((k) => categoriaDe(k) !== 'aluno');
   let aReceber = 0; let recebido = 0;
   const tarefas = [];
   cartelas.forEach((ct) => {
@@ -334,9 +344,9 @@ async function telaPainel() {
     if (avis) tarefas.push({ href: `#/bolao/${bl.id}`, titulo: bl.titulo, txt: `${avis} ${avis === 1 ? 'pessoa avisou' : 'pessoas avisaram'} que pagou a cota do bolão. Confira e confirme.`, tag: 'Confirmar' });
     (bl.bolao_cotas || []).forEach((c) => { if (c.status === 'pago') recebido += Number(c.valor); else if (bl.status === 'aberto') aReceber += Number(c.valor); });
   });
-  combinados.filter((k) => k.status === 'ativo').forEach((k) => {
+  todosCombinados.filter((k) => k.status === 'ativo').forEach((k) => {
     (k.combinado_membros || []).filter((m) => m.ativo && !m.convite_enviado_em).forEach((m) => {
-      tarefas.push({ href: `#/k/${k.id}`, titulo: k.titulo, txt: categoriaDe(k) === 'venda' ? `Mandar o carnê para ${esc(primeiroNome(m.nome))} confirmar a compra` : `Mandar o combinado para ${esc(primeiroNome(m.nome))} confirmar`, tag: 'Convidar' });
+      tarefas.push({ href: `#/k/${k.id}`, titulo: k.titulo, txt: categoriaDe(k) === 'aluno' ? `Mandar a mensalidade para ${esc(primeiroNome(m.nome))} confirmar` : categoriaDe(k) === 'venda' ? `Mandar o carnê para ${esc(primeiroNome(m.nome))} confirmar a compra` : `Mandar o combinado para ${esc(primeiroNome(m.nome))} confirmar`, tag: 'Convidar' });
     });
   });
   cobrancas.forEach((c) => {
@@ -386,6 +396,7 @@ async function telaPainel() {
     ${tarefas.length ? `<section class="pilha-p" aria-labelledby="t-hoje"><h2 id="t-hoje">Para fazer hoje</h2><ul class="lista">
       ${tarefas.map((t) => `<li><a class="item" href="${t.href}"><span class="grow">${t.txt}<span class="muted pequeno" style="display:block">${esc(t.titulo)}</span></span><span class="tag ${t.tag === 'Confirmar' ? 'avisou_pago' : t.tag === 'Convidar' ? 'neutra' : 'pendente'}">${t.tag}</span></a></li>`).join('')}
     </ul></section>` : ''}
+    ${alunos.length ? `<a class="item card" href="#/alunos" style="text-decoration: none; color: inherit"><span class="icone roxo">${ICONE.aluno}</span><span class="grow"><span class="titulo-item">Alunos e clientes</span><span class="muted pequeno" style="display:block">${alunos.length} ${alunos.length === 1 ? 'ativo' : 'ativos'} · ${brl(alunos.filter((k) => k.status === 'ativo').reduce((t, k) => t + (k.combinado_membros || []).filter((m) => m.ativo).reduce((u, m) => u + Number(m.valor || k.valor_por_pessoa), 0), 0))} por mês</span></span><span class="tag neutra">Ver</span></a>` : ''}
     <section class="pilha-p" aria-labelledby="t-comb">
       <div class="linha-flex entre"><h2 id="t-comb">Combinados</h2><a class="btn peq" href="#/nova">${ICONE.mais}Novo</a></div>
       ${combinados.length ? `<ul class="lista">${combinados.map(itemCombinado).join('')}</ul>` : `
@@ -423,6 +434,12 @@ function telaNova() {
     ${opcao('/combinar/vaquinha', 'vaquinha', 'Vaquinha', 'Churrasco, festa, presente: cada um paga antes, ninguém adianta nada.')}
     ${opcao('/combinar/viagem', 'viagem', 'Viagem parcelada', 'O valor da viagem dividido em parcelas até a data.')}
     ${opcao('/combinar/mensalidade', 'mensalidade', 'Mensalidade do grupo', 'Pelada, quadra, república, streaming dividido.')}
+    <div class="pilha-p" style="margin-top: 16px">
+      <h2>Para profissionais</h2>
+      <p class="muted">Professor, personal, instrutor, terapeuta: a mensalidade de cada aluno sai sozinha.</p>
+    </div>
+    ${opcao('/aluno/novo', 'aluno', 'Aluno ou cliente fixo', 'Mensalidade todo mês, com Pix, recibo e reajuste anual.')}
+    <div class="pilha-p" style="margin-top: 16px"><h2>Mais combinados</h2></div>
     ${opcao('/bolao/novo', 'bolao', 'Bolão da loteria', 'Mega, Lotofácil, Quina: cada um paga a cota pelo link, todos veem os jogos e o app confere o resultado.')}
     <div class="pilha-p" style="margin-top: 16px">
       <h2>Para quem vende</h2>
@@ -710,7 +727,7 @@ function telaFormCombinado(modelo) {
       }
     }
     if (novo.valor_modo === 'dividir') await sb.rpc('recalcular_valores', { p_combinado: novo.id });
-    await sb.rpc('gerar_cobrancas_v2');
+    await sb.rpc('gerar_cobrancas_v3');
     registrar('combinado_criado', { modelo, aberta: !!novo.entrada_aberta, dividir: novo.valor_modo === 'dividir' });
     toast(novo.entrada_aberta ? 'Lista aberta! Agora mande o link no grupo.' : 'Combinado criado! Agora mande para cada um topar.');
     go(`/k/${novo.id}`);
@@ -720,7 +737,7 @@ function telaFormCombinado(modelo) {
 async function telaCombinado(id) {
   render(casca('<p class="carregando">Carregando…</p>', { voltar: '/' }));
   const carregar = async () => {
-    await sb.rpc('gerar_cobrancas_v2');
+    await sb.rpc('gerar_cobrancas_v3');
     const [rk, rc] = await Promise.all([
       sb.from('combinados').select('*, combinado_membros(*)').eq('id', id).maybeSingle(),
       sb.from('cobrancas').select('id, titulo, ciclo, vencimento, status, valor_total, participantes(status)').eq('combinado_id', id).order('ciclo', { ascending: false })
@@ -771,6 +788,20 @@ async function telaCombinado(id) {
     </div>`;
   };
 
+  const ehAluno = categoriaDe(k) === 'aluno';
+  const alunoHTML = () => {
+    const r = (k.detalhes || {}).reajuste;
+    return `<div class="card destaque pilha-p">
+      <div class="linha-flex entre"><h2>Mensalidade</h2><strong style="font-size: 1.3rem">${brl(k.valor_por_pessoa)}</strong></div>
+      ${r ? `<p><strong>Reajuste agendado:</strong> ${brl(r.valor)} a partir de ${dataBR(r.a_partir)}.<br><span class="muted pequeno">${r.avisado_em ? `Aviso enviado em ${new Date(r.avisado_em).toLocaleDateString('pt-BR')}.` : 'O aviso ainda não foi enviado.'}</span></p>` : ''}
+      <div class="acoes">
+        ${r ? `<button type="button" class="btn peq" data-acao="avisoreajuste">${r.avisado_em ? 'Reenviar aviso' : 'Enviar aviso do reajuste'}</button><button type="button" class="btn texto peq" data-acao="cancelarreajuste">Cancelar reajuste</button>`
+          : k.status === 'ativo' ? '<a class="btn sec peq" href="#/alunos/reajuste">Reajuste anual</a>' : ''}
+        ${k.status !== 'encerrado' ? '<button type="button" class="btn texto peq" data-acao="mudarvalor">Mudar o valor agora</button>' : ''}
+      </div>
+      <a class="pequeno" href="#/alunos">Ver todos os alunos</a>
+    </div>`;
+  };
   const desenhar = () => {
     const ms = k.combinado_membros.filter((m) => m.ativo);
     const toparam = ms.filter((m) => m.aceito_em).length;
@@ -809,12 +840,12 @@ async function telaCombinado(id) {
           : `<p class="muted pequeno">Confirmaram o combinado</p><p class="numero" style="color: var(--lima)">${toparam} de ${ms.length}</p>`}</div>
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
-      ${listaHTML(ms)}
+      ${ehAluno ? alunoHTML() : listaHTML(ms)}
       <div id="vitrine-dono" data-alvo="combinado" data-id="${k.id}"></div>
       <p class="muted pequeno">${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? 'Quando você fechar a lista, o app calcula o valor final e cria a cobrança de cada um.' : 'O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.'}</p>
       ${k.status === 'ativo' ? `<div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(k.tom, 'tomk')}</div>` : ''}
-      <section class="pilha-p" aria-label="Participantes"><h2>Participantes</h2>${ms.map(cartao).join('')}
-        ${k.status !== 'encerrado' ? `<form id="add" class="card pilha-p" novalidate>
+      <section class="pilha-p" aria-label="Participantes"><h2>${ehAluno ? 'Aluno' : 'Participantes'}</h2>${ms.map(cartao).join('')}
+        ${k.status !== 'encerrado' && !(ehAluno && ms.length) ? `<form id="add" class="card pilha-p" novalidate>
           <span style="font-weight: 600">Adicionar pessoa</span>
           <div class="grade-2">
             <div class="campo"><label class="sr" for="novo-nome">Nome</label><input id="novo-nome" list="dl-contatos" autocomplete="off" data-contato-tel="#novo-tel" maxlength="60" placeholder="Nome"></div>
@@ -911,6 +942,30 @@ async function telaCombinado(id) {
       k.status = status;
       toast(status === 'pausado' ? 'Combinado pausado.' : status === 'ativo' ? 'Combinado retomado.' : 'Combinado encerrado.');
       desenhar();
+    } else if (acao === 'mudarvalor') {
+      const t = window.prompt(`Novo valor da mensalidade (hoje ${brl(k.valor_por_pessoa)}). Vale para as próximas cobranças; as que já foram criadas não mudam.`, String(k.valor_por_pessoa).replace('.', ','));
+      if (t === null) return;
+      const v = round2(parseValor(t));
+      if (!(v > 0 && v < 10000000)) { toast('Valor inválido.', 'erro'); return; }
+      const { error: e7 } = await sb.from('combinados').update({ valor_por_pessoa: v }).eq('id', k.id);
+      if (e7) { toast(traduzErro(e7), 'erro'); return; }
+      toast(`Mensalidade agora é ${brl(v)}.`);
+      await recarregar();
+    } else if (acao === 'avisoreajuste') {
+      const r = k.detalhes.reajuste; const membro = k.combinado_membros.find((x) => x.ativo);
+      if (!membro) return;
+      const texto = avisoReajuste({ tom: k.tom, nome: membro.nome, servico: (k.detalhes.servico || k.titulo), de: brl(k.valor_por_pessoa), para: brl(r.valor), pct: `${String(r.pct).replace('.', ',')}%`, apartir: dataBR(r.a_partir), plano: estado.perfil.plano });
+      window.open(linkWhatsApp(membro.telefone, texto), '_blank', 'noopener');
+      const detalhes = { ...k.detalhes, reajuste: { ...r, avisado_em: new Date().toISOString() } };
+      await sb.from('combinados').update({ detalhes }).eq('id', k.id);
+      k.detalhes = detalhes; desenhar();
+      registrar('reajuste_avisado');
+    } else if (acao === 'cancelarreajuste') {
+      if (!window.confirm('Cancelar o reajuste agendado? A mensalidade continua com o valor de hoje.')) return;
+      const detalhes = { ...k.detalhes }; delete detalhes.reajuste;
+      const { error: e8 } = await sb.from('combinados').update({ detalhes }).eq('id', k.id);
+      if (e8) { toast(traduzErro(e8), 'erro'); return; }
+      k.detalhes = detalhes; toast('Reajuste cancelado.'); desenhar();
     } else if (acao === 'apagar') {
       if (!window.confirm('Apagar este combinado de vez? As cobranças já criadas continuam na sua lista.')) return;
       const { error: e3 } = await sb.from('combinados').delete().eq('id', k.id);
@@ -1157,6 +1212,7 @@ async function telaCobranca(id) {
       <div class="linha-flex entre"><div><h3>${esc(p.nome)}</h3><p class="muted pequeno">${info}</p></div>
         <div style="text-align: right"><strong>${brl(p.status === 'pago' ? p.valor : restante(p))}</strong><br><span class="tag ${p.status}">${NOME_STATUS[p.status]}</span></div></div>
       ${c.status === 'aberta' ? `<div class="acoes">${acoes}</div>` : ''}
+      ${p.status === 'pago' ? `<a class="btn sec peq" href="#/recibo/${p.id}" style="align-self: flex-start">${ICONE.recibo.replace('width="26" height="26"', 'width="18" height="18"')}Recibo</a>` : ''}
       ${aberto ? `<div class="previa">
         <label for="m-${p.id}" class="pequeno" style="font-weight: 600">Mensagem (pode editar antes de enviar)</label>
         <textarea id="m-${p.id}">${esc(mensagemPara(p))}</textarea>
@@ -1320,7 +1376,7 @@ function telaFormVenda() {
     if (error) { btn.disabled = false; btn.textContent = 'Registrar venda'; msg.textContent = traduzErro(error); return; }
     const { error: e2 } = await sb.from('combinado_membros').insert({ combinado_id: novo.id, nome: cliente, telefone: soDigitos($('#tel').value) || null });
     if (e2) { await sb.from('combinados').delete().eq('id', novo.id); btn.disabled = false; btn.textContent = 'Registrar venda'; msg.textContent = traduzErro(e2); return; }
-    await sb.rpc('gerar_cobrancas_v2');
+    await sb.rpc('gerar_cobrancas_v3');
     registrar('venda_criada', { parcelas: r.parcelas });
     toast('Venda registrada! Mande o carnê para a cliente confirmar.');
     go(`/k/${novo.id}`);
@@ -2315,7 +2371,7 @@ function telaCalculadora(id) {
   montarCalculadora($('#calc-area'), calc, (dados) => {
     registrar('calculadora_combinar', { calc: calc.id });
     guardarPreenchimento(dados);
-    go(`/combinar/${dados.modelo}`);
+    go(dados.rota || `/combinar/${dados.modelo}`);
   });
 }
 
@@ -2327,7 +2383,7 @@ function somarDias(iso, dias) {
 
 async function telaResumo() {
   render(casca('<p class="carregando">Montando seu resumo…</p>', { ativo: 'resumo' }));
-  await sb.rpc('gerar_cobrancas_v2');
+  await sb.rpc('gerar_cobrancas_v3');
   const [rc, rk, rn] = await Promise.all([
     sb.from('cobrancas').select('id, tipo, modelo, titulo, vencimento, status, combinado_id, ciclo, detalhes, participantes(id, nome, telefone, valor, valor_pago, status, pago_em)').neq('status', 'cancelada'),
     sb.from('combinados').select('id, modelo, titulo, regra, frequencia, inicio, prazo, parcelas, valor_por_pessoa, status, detalhes, combinado_membros(ativo, valor)').eq('status', 'ativo'),
@@ -2525,8 +2581,14 @@ function telaConta() {
       <a class="btn sec" href="#/perfil" style="margin-top: 8px">Editar meus dados</a>
     </div>
     <div class="card destaque pilha-p">
-      <div class="linha-flex entre"><h2>Plano ${p.plano === 'gratis' ? 'Grátis' : p.plano === 'plus' ? 'Plus' : 'Autônomo'}</h2><span class="tag neutra">Atual</span></div>
-      <p class="muted">${p.plano === 'gratis' ? 'Suas mensagens saem com "enviado por dx cmg". O Plus, sem marca e com lembretes ilimitados, chega em breve.' : 'Obrigado por apoiar o Deixa Comigo!'}</p>
+      <div class="linha-flex entre"><h2>Plano ${nomePlano(p.plano)}</h2><span class="tag neutra">Atual</span></div>
+      <p class="muted">${p.plano === 'gratis' ? `Suas mensagens saem com "enviado por dx cmg". Os planos pagos chegam em breve; até ${dataBR(LIBERADO_ATE)}, agenda, alertas, conferência do bolão e os recursos do Profissional estão liberados para todos.` : 'Obrigado por apoiar o Deixa Comigo!'}</p>
+      ${p.plano === 'gratis' ? '<a class="btn sec peq" href="/profissionais/#plano-aut" style="align-self: flex-start">Ver planos: Plus e Profissional</a>' : ''}
+    </div>
+    <div class="card pilha-p">
+      <h2>Para profissionais</h2>
+      <a class="btn sec" href="#/alunos">Alunos e clientes</a>
+      <a class="btn sec" href="#/relatorio">Relatório do mês</a>
     </div>
     <div class="card pilha-p">
       <div id="alertas-card"></div>
@@ -2553,6 +2615,328 @@ function telaConta() {
     estado.perfil = null; estado.perfilCarregado = false; estado.sessao = null;
     go('/entrar');
   });
+}
+
+// ---------- profissionais: alunos, reajuste, recibo, relatório ----------
+function liberadoPro() { return conferenciaLiberada(estado.perfil.plano); }
+function seloPro() {
+  if (estado.perfil.plano !== 'gratis') return '';
+  return liberadoPro() ? `<p class="muted pequeno">Recurso do plano Profissional, liberado de graça até ${dataBR(LIBERADO_ATE)}.</p>` : '';
+}
+function bloqueioPro(oque) {
+  return `<div class="card escuro pilha-p"><h2>${oque} é do plano Profissional</h2>
+    <p class="muted">O período de lançamento, em que tudo estava liberado, terminou em ${dataBR(LIBERADO_ATE)}. Com o Profissional você tem reajuste anual, recibos e relatório do mês.</p>
+    <a class="btn lima" href="/profissionais/#plano-aut">Conhecer o plano Profissional</a></div>`;
+}
+function primeiroVencDepois(k, minimoISO) {
+  let n = 1;
+  while (n < 240 && vencimentoCiclo(k.inicio, 'mensal', n) < minimoISO) n++;
+  return vencimentoCiclo(k.inicio, 'mensal', n);
+}
+function proximoDiaDoMes(dia) {
+  const h = hojeISO();
+  const [a, m] = h.split('-').map(Number);
+  const tenta = (ano, mes) => { const ult = new Date(Date.UTC(ano, mes, 0)).getUTCDate(); return `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(dia, ult)).padStart(2, '0')}`; };
+  const este = tenta(a, m);
+  return este > h ? este : (m === 12 ? tenta(a + 1, 1) : tenta(a, m + 1));
+}
+
+async function carregarAlunos() {
+  await sb.rpc('gerar_cobrancas_v3');
+  const [rk, rc] = await Promise.all([
+    sb.from('combinados').select('*, combinado_membros(*)').eq('detalhes->>categoria', 'aluno').neq('status', 'encerrado').order('criado_em'),
+    sb.from('cobrancas').select('id, combinado_id, vencimento, status, participantes(status, valor, valor_pago)').eq('detalhes->>categoria', 'aluno').eq('status', 'aberta')
+  ]);
+  if (rk.error) throw rk.error;
+  if (rc.error) throw rc.error;
+  const hoje = hojeISO();
+  return (rk.data || []).map((k) => {
+    const membro = (k.combinado_membros || []).find((m) => m.ativo) || null;
+    const abertas = (rc.data || []).filter((c) => c.combinado_id === k.id);
+    let atrasado = 0; let emAberto = 0; let avisou = false;
+    abertas.forEach((c) => (c.participantes || []).forEach((p) => {
+      if (p.status === 'pago') return;
+      if (p.status === 'avisou_pago') avisou = true;
+      const r = restante(p); emAberto += r;
+      if (c.vencimento && c.vencimento < hoje) atrasado += r;
+    }));
+    return { k, membro, atrasado, emAberto, avisou, mensal: membro ? Number(membro.valor || k.valor_por_pessoa) : 0 };
+  });
+}
+
+async function telaAlunos() {
+  render(casca('<p class="carregando">Carregando seus alunos…</p>', { voltar: '/' }));
+  const lista = await carregarAlunos();
+  const ativos = lista.filter((a) => a.k.status === 'ativo' && a.membro);
+  const porMes = ativos.reduce((t, a) => t + a.mensal, 0);
+  const atrasado = lista.reduce((t, a) => t + a.atrasado, 0);
+  const item = (a) => {
+    const k = a.k; const r = (k.detalhes || {}).reajuste;
+    const dia = Number(String(k.inicio).slice(8, 10));
+    const tag = a.avisou ? '<span class="tag avisou_pago">Avisou que pagou</span>'
+      : a.atrasado ? `<span class="tag" style="background:#FDE8E6; color: var(--vermelho)">${brl(a.atrasado)} atrasado</span>`
+      : k.status === 'pausado' ? '<span class="tag neutra">Pausado</span>' : '<span class="tag pago">Em dia</span>';
+    return `<li><a class="item" href="#/k/${k.id}"><span class="icone roxo" style="width:44px;height:44px">${ICONE.aluno}</span>
+      <span class="grow"><span class="titulo-item">${esc(a.membro ? a.membro.nome : 'Sem aluno')}</span>
+      <span class="muted pequeno" style="display:block">${esc(k.detalhes.servico || k.titulo)} · ${brl(a.mensal)}/mês · dia ${dia}</span>
+      ${r ? `<span class="pequeno" style="display:block; color: var(--roxo)">Reajuste: ${brl(r.valor)} a partir de ${dataBR(r.a_partir)}${r.avisado_em ? '' : ' (avisar)'}</span>` : ''}</span>${tag}</a></li>`;
+  };
+  render(casca(`
+    <div class="linha-flex entre"><h1>Alunos e clientes</h1><a class="btn peq" href="#/aluno/novo">${ICONE.mais}Novo</a></div>
+    ${seloPro()}
+    <div class="resumo">
+      <div class="card escuro"><p class="muted pequeno">Mensalidades por mês</p><p class="numero" style="color: var(--lima)">${brl(porMes)}</p><p class="muted pequeno">${ativos.length} ${ativos.length === 1 ? 'aluno ativo' : 'alunos ativos'}</p></div>
+      <div class="card" style="${atrasado ? 'border-color: #F3C4BF' : ''}"><p class="muted pequeno">Em atraso</p><p class="numero" style="${atrasado ? 'color: var(--vermelho)' : ''}">${brl(atrasado)}</p></div>
+    </div>
+    <div class="acoes">
+      <a class="btn sec peq" href="#/alunos/reajuste">Reajuste anual</a>
+      <a class="btn sec peq" href="#/relatorio">Relatório do mês</a>
+    </div>
+    ${lista.length ? `<ul class="lista">${lista.map(item).join('')}</ul>` : `
+      <div class="card vazio pilha-p"><p><strong>Cadastre seus alunos uma vez.</strong></p><p>Todo mês o app prepara a mensalidade de cada um, com Pix, e te avisa a hora de mandar. Depois é só acompanhar quem pagou.</p><a class="btn" href="#/aluno/novo" style="align-self: center">Cadastrar o primeiro aluno</a></div>`}
+    <p class="muted pequeno">Não sabe quanto cobrar? <a href="#/calc/aula">Calcule o preço da aula</a> ou <a href="#/calc/pacote">a mensalidade</a>.</p>
+  `, { voltar: '/' }));
+}
+
+function telaFormAluno() {
+  const pre = lerPreenchimento();
+  const valorPre = pre && pre.modelo === 'aluno' && pre.valor ? String(pre.valor.toFixed(2)).replace('.', ',') : '';
+  const f = { tom: 'leve' };
+  const sugestoes = ['Aulas de inglês', 'Aulas de espanhol', 'Aulas de piano', 'Aulas de violão', 'Reforço escolar', 'Personal trainer', 'Pilates', 'Yoga', 'Natação', 'Dança', 'Jiu-jítsu', 'Terapia', 'Acompanhamento nutricional'];
+  render(casca(`
+    <div class="pilha-p"><h1>Novo aluno ou cliente</h1><p class="muted">Cadastre uma vez. Todo mês o app prepara a mensalidade com Pix e te avisa a hora de mandar.</p></div>
+    <form id="f" class="pilha" novalidate>
+      <div class="card pilha">
+        <div class="grade-2">
+          <div class="campo"><label for="nome">Nome do aluno</label><input id="nome" list="dl-contatos" autocomplete="off" data-contato-tel="#tel" maxlength="60" placeholder="Nome"></div>
+          <div class="campo"><label for="tel">WhatsApp</label><input id="tel" type="tel" inputmode="tel" maxlength="20" placeholder="(11) 98765-4321"></div>
+        </div>
+        <div class="campo"><label for="servico">O que você oferece</label><input id="servico" list="dl-servicos" maxlength="50" placeholder="Ex.: Aulas de inglês"><datalist id="dl-servicos">${sugestoes.map((x) => `<option value="${x}">`).join('')}</datalist></div>
+        <div class="grade-2">
+          <div class="campo"><label for="valor">Mensalidade (R$)</label><input id="valor" inputmode="decimal" placeholder="Ex.: 300,00" value="${esc(valorPre)}"></div>
+          <div class="campo"><label for="dia">Dia do vencimento</label><input id="dia" inputmode="numeric" maxlength="2" value="10"></div>
+        </div>
+        <div class="campo"><label for="inicio">Primeira mensalidade em</label><input id="inicio" type="date" min="${hojeISO()}" value="${proximoDiaDoMes(10)}"><span class="ajuda">As próximas vencem no mesmo dia, todo mês.</span></div>
+        <div class="campo"><label for="descricao">Observação (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: terças e quintas, 19h"></div>
+      </div>
+      <div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(f.tom)}</div>
+      <p id="msg" class="erro" role="alert"></p>
+      <button class="btn bloco lima" type="submit" data-depois="ver">Salvar aluno</button>
+      <button class="btn bloco sec" type="submit" data-depois="outro">Salvar e cadastrar outro com o mesmo valor</button>
+    </form>`, { voltar: '/alunos' }));
+  ligarTons('tom', (t) => { f.tom = t; });
+  let depois = 'ver';
+  $$('[data-depois]').forEach((b) => b.addEventListener('click', () => { depois = b.dataset.depois; }));
+  $('#dia').addEventListener('input', () => {
+    const d = Math.round(parseValor($('#dia').value));
+    if (d >= 1 && d <= 31) $('#inicio').value = proximoDiaDoMes(d);
+  });
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('#msg'); msg.textContent = '';
+    const nome = $('#nome').value.trim();
+    const servico = $('#servico').value.trim();
+    const valor = round2(parseValor($('#valor').value));
+    const inicio = $('#inicio').value;
+    if (!nome) { msg.textContent = 'Diga o nome do aluno.'; return; }
+    if (!servico) { msg.textContent = 'Diga o que você oferece (ex.: Aulas de inglês).'; return; }
+    if (!(valor > 0 && valor < 10000000)) { msg.textContent = 'Informe o valor da mensalidade.'; return; }
+    if (!inicio) { msg.textContent = 'Escolha a data da primeira mensalidade.'; return; }
+    const botoes = $$('#f button[type=submit]'); botoes.forEach((b) => { b.disabled = true; });
+    const { data: novo, error } = await sb.from('combinados').insert({
+      modelo: 'mensalidade', titulo: servico.slice(0, 60), regra: 'recorrente', frequencia: 'mensal',
+      valor_por_pessoa: valor, inicio, tom: f.tom, descricao: $('#descricao').value.trim() || null,
+      detalhes: { categoria: 'aluno', servico }
+    }).select().single();
+    if (error) { botoes.forEach((b) => { b.disabled = false; }); msg.textContent = traduzErro(error); return; }
+    const { error: e2 } = await sb.from('combinado_membros').insert({ combinado_id: novo.id, nome, telefone: soDigitos($('#tel').value) || null });
+    if (e2) { await sb.from('combinados').delete().eq('id', novo.id); botoes.forEach((b) => { b.disabled = false; }); msg.textContent = traduzErro(e2); return; }
+    await sb.rpc('gerar_cobrancas_v3');
+    registrar('aluno_criado', { valor });
+    if (depois === 'outro') {
+      toast(`${primeiroNome(nome)} cadastrado! Agora o próximo.`);
+      $('#nome').value = ''; $('#tel').value = ''; $('#descricao').value = '';
+      botoes.forEach((b) => { b.disabled = false; });
+      $('#nome').focus();
+      return;
+    }
+    toast(`${primeiroNome(nome)} cadastrado! Mande a mensalidade para confirmar.`);
+    go(`/k/${novo.id}`);
+  });
+}
+
+async function telaReajuste() {
+  render(casca('<p class="carregando">Carregando…</p>', { voltar: '/alunos' }));
+  if (!liberadoPro()) { render(casca(bloqueioPro('O reajuste anual'), { voltar: '/alunos' })); return; }
+  const lista = (await carregarAlunos()).filter((a) => a.k.status === 'ativo' && a.membro);
+  const st = { pct: 8, arred: true, sel: new Set(lista.filter((a) => !(a.k.detalhes || {}).reajuste).map((a) => a.k.id)), feito: null };
+  const minimo = somarDias(hojeISO(), 30);
+  const calc = (a) => {
+    const novo = st.arred ? Math.round(a.mensal * (1 + st.pct / 100)) : round2(a.mensal * (1 + st.pct / 100));
+    return { novo, apartir: primeiroVencDepois(a.k, minimo) };
+  };
+  const desenhar = () => {
+    if (st.feito) {
+      render(casca(`
+        <div class="pilha-p"><h1>Reajuste agendado</h1><p class="muted">O valor novo entra sozinho em cada data. Agora avise cada aluno com antecedência: a mensagem já está pronta.</p></div>
+        <ul class="lista">${st.feito.map((a) => {
+          const r = a.k.detalhes.reajuste;
+          return `<li class="item"><span class="grow"><span class="titulo-item">${esc(a.membro.nome)}</span><span class="muted pequeno" style="display:block">${brl(a.mensal)} → ${brl(r.valor)} a partir de ${dataBR(r.a_partir)}</span></span>
+            <button type="button" class="btn ${r.avisado_em ? 'sec' : ''} peq" data-avisar="${a.k.id}">${r.avisado_em ? 'Avisado ✓' : 'Avisar no WhatsApp'}</button></li>`;
+        }).join('')}</ul>
+        <a class="btn sec bloco" href="#/alunos">Voltar para os alunos</a>`, { voltar: '/alunos' }));
+      return;
+    }
+    const escolhidos = lista.filter((a) => st.sel.has(a.k.id));
+    const ganho = escolhidos.reduce((t, a) => t + (calc(a).novo - a.mensal), 0);
+    render(casca(`
+      <div class="pilha-p"><h1>Reajuste anual</h1><p class="muted">Escolha o percentual. O app agenda o valor novo para a primeira mensalidade daqui a pelo menos 30 dias e prepara o aviso de cada aluno.</p>${seloPro()}</div>
+      <div class="card pilha-p">
+        <span style="font-weight: 600">Percentual</span>
+        <div class="tons" role="group" aria-label="Percentual de reajuste">${[5, 8, 10, 12].map((p) => `<button type="button" class="tom" data-pct="${p}" aria-pressed="${st.pct === p}">${p}%</button>`).join('')}</div>
+        <div class="campo"><label for="pct-outro">Outro percentual (%)</label><input id="pct-outro" inputmode="decimal" value="${[5, 8, 10, 12].includes(st.pct) ? '' : String(st.pct).replace('.', ',')}" placeholder="Ex.: 4,5"></div>
+        <label class="check"><input type="checkbox" id="arred" ${st.arred ? 'checked' : ''}> Arredondar para reais inteiros</label>
+        <p class="muted pequeno">Dica: muitos profissionais usam a inflação do ano (IPCA) como referência. Você decide.</p>
+      </div>
+      ${lista.length ? `<section class="pilha-p"><h2>Alunos</h2><ul class="lista">${lista.map((a) => {
+        const r = (a.k.detalhes || {}).reajuste; const c = calc(a);
+        return `<li class="item"><label class="check grow" style="align-items: flex-start"><input type="checkbox" data-sel="${a.k.id}" ${st.sel.has(a.k.id) ? 'checked' : ''}>
+          <span><span class="titulo-item">${esc(a.membro.nome)}</span><span class="muted pequeno" style="display:block">${r ? `Já tem reajuste agendado: ${brl(r.valor)} a partir de ${dataBR(r.a_partir)}` : `${brl(a.mensal)} → <strong>${brl(c.novo)}</strong> a partir de ${dataBR(c.apartir)}`}</span></span></label></li>`;
+      }).join('')}</ul></section>` : '<div class="card vazio"><p>Você ainda não tem alunos ativos. <a href="#/aluno/novo">Cadastre o primeiro</a>.</p></div>'}
+      ${escolhidos.length ? `<div class="calc"><div class="lin"><span>Alunos reajustados</span><span>${escolhidos.length}</span></div><div class="lin total"><span>A mais por mês</span><span>+ ${brl(ganho)}</span></div></div>` : ''}
+      <p id="msg" class="erro" role="alert"></p>
+      <button type="button" class="btn lima bloco" id="aplicar" ${escolhidos.length ? '' : 'disabled'}>Agendar reajuste de ${escolhidos.length} ${escolhidos.length === 1 ? 'aluno' : 'alunos'}</button>`, { voltar: '/alunos' }));
+    $$('[data-pct]').forEach((b) => b.addEventListener('click', () => { st.pct = Number(b.dataset.pct); desenhar(); }));
+    const outro = $('#pct-outro');
+    if (outro) outro.addEventListener('change', () => { const v = parseValor(outro.value); if (v > 0 && v <= 100) { st.pct = round2(v); desenhar(); } });
+    const arred = $('#arred'); if (arred) arred.addEventListener('change', () => { st.arred = arred.checked; desenhar(); });
+    $$('[data-sel]').forEach((c) => c.addEventListener('change', () => { if (c.checked) st.sel.add(c.dataset.sel); else st.sel.delete(c.dataset.sel); desenhar(); }));
+    const btn = $('#aplicar');
+    if (btn) btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = 'Agendando…';
+      const feitos = [];
+      for (const a of escolhidos) {
+        const c = calc(a);
+        if (!(c.novo > a.mensal)) continue;
+        const detalhes = { ...a.k.detalhes, reajuste: { valor: c.novo, a_partir: c.apartir, pct: st.pct, criado_em: new Date().toISOString() } };
+        const { error } = await sb.from('combinados').update({ detalhes }).eq('id', a.k.id);
+        if (error) { $('#msg').textContent = traduzErro(error); btn.disabled = false; return; }
+        a.k.detalhes = detalhes; feitos.push(a);
+      }
+      registrar('reajuste_agendado', { alunos: feitos.length, pct: st.pct });
+      st.feito = feitos; desenhar();
+    });
+  };
+  ouvinteTela = async (e) => {
+    const b = e.target.closest('[data-avisar]');
+    if (!b || !st.feito) return;
+    const a = st.feito.find((x) => x.k.id === b.dataset.avisar);
+    const r = a.k.detalhes.reajuste;
+    const texto = avisoReajuste({ tom: a.k.tom, nome: a.membro.nome, servico: a.k.detalhes.servico || a.k.titulo, de: brl(a.mensal), para: brl(r.valor), pct: `${String(r.pct).replace('.', ',')}%`, apartir: dataBR(r.a_partir), plano: estado.perfil.plano });
+    window.open(linkWhatsApp(a.membro.telefone, texto), '_blank', 'noopener');
+    a.k.detalhes = { ...a.k.detalhes, reajuste: { ...r, avisado_em: new Date().toISOString() } };
+    await sb.from('combinados').update({ detalhes: a.k.detalhes }).eq('id', a.k.id);
+    registrar('reajuste_avisado');
+    desenhar();
+  };
+  app.addEventListener('click', ouvinteTela);
+  desenhar();
+}
+
+function dataExtenso(iso) {
+  const d = new Date(iso);
+  return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
+async function telaRecibo(id) {
+  render(casca('<p class="carregando">Carregando…</p>', { voltar: '/' }));
+  const { data: p, error } = await sb.from('participantes').select('*, cobrancas(id, titulo, detalhes)').eq('id', id).maybeSingle();
+  if (error) throw error;
+  const voltar = p && p.cobrancas ? `/c/${p.cobrancas.id}` : '/';
+  if (!p || p.status !== 'pago') { render(casca('<div class="card pilha"><h2>Recibo indisponível</h2><p class="muted">O recibo aparece depois que você confirma o pagamento.</p></div>', { voltar })); return; }
+  if (!liberadoPro()) { render(casca(bloqueioPro('O recibo'), { voltar })); return; }
+  const perfil = estado.perfil;
+  const valor = Number(p.valor_pago || p.valor);
+  const det = (p.cobrancas && p.cobrancas.detalhes) || {};
+  const referente = det.categoria === 'aluno' ? `mensalidade de ${p.cobrancas.titulo}` : (p.cobrancas ? p.cobrancas.titulo : 'pagamento');
+  const quando = p.pago_em || new Date().toISOString();
+  const local = perfil.cidade ? `${perfil.cidade}, ${dataExtenso(quando)}` : dataExtenso(quando);
+  const texto = textoRecibo({ nome: p.nome, valor: brl(valor), extenso: valorPorExtenso(valor), referente, data: local, recebedor: perfil.nome, plano: perfil.plano });
+  render(casca(`
+    <div class="recibo" aria-label="Recibo">
+      <div class="linha-flex entre"><h1 style="margin: 0">Recibo</h1><strong style="font-size: 1.3rem">${brl(valor)}</strong></div>
+      <p>Recebi de <strong>${esc(p.nome)}</strong> a quantia de <strong>${brl(valor)}</strong> (${esc(valorPorExtenso(valor))}), referente a ${esc(referente)}.</p>
+      <p>Pagamento via Pix.</p>
+      <p>${esc(local)}.</p>
+      <div class="assinatura"><strong>${esc(perfil.nome)}</strong></div>
+    </div>
+    <div class="acoes nao-imprimir">
+      <button type="button" class="btn" id="r-whats">Enviar no WhatsApp</button>
+      <button type="button" class="btn sec" id="r-print">Imprimir ou salvar em PDF</button>
+      <button type="button" class="btn texto" id="r-copiar">Copiar texto</button>
+    </div>
+    <p class="muted pequeno nao-imprimir">${seloPro() ? 'Recurso do plano Profissional, liberado de graça até ' + dataBR(LIBERADO_ATE) + '.' : ''}</p>`, { voltar }));
+  $('#r-whats').addEventListener('click', () => { window.open(linkWhatsApp(p.telefone, texto), '_blank', 'noopener'); registrar('recibo_enviado'); });
+  $('#r-print').addEventListener('click', () => { registrar('recibo_impresso'); window.print(); });
+  $('#r-copiar').addEventListener('click', async () => { const ok = await copiar(texto); toast(ok ? 'Recibo copiado.' : 'Não consegui copiar.', ok ? 'ok' : 'erro'); });
+}
+
+async function telaRelatorio(mes) {
+  const atual = hojeISO().slice(0, 7);
+  const m = mes || atual;
+  render(casca('<p class="carregando">Montando o relatório…</p>', { voltar: '/conta' }));
+  if (!liberadoPro()) { render(casca(bloqueioPro('O relatório do mês'), { voltar: '/conta' })); return; }
+  const [a, mm] = m.split('-').map(Number);
+  const prox = mm === 12 ? `${a + 1}-01` : `${a}-${String(mm + 1).padStart(2, '0')}`;
+  const ant = mm === 1 ? `${a - 1}-12` : `${a}-${String(mm - 1).padStart(2, '0')}`;
+  const ini = `${m}-01T00:00:00-03:00`; const fim = `${prox}-01T00:00:00-03:00`;
+  const [rp, rn] = await Promise.all([
+    sb.from('participantes').select('id, nome, valor, valor_pago, pago_em, cobrancas(titulo, tipo, modelo, detalhes)').eq('status', 'pago').gte('pago_em', ini).lt('pago_em', fim).order('pago_em'),
+    sb.from('cartela_itens').select('numero, nome, valor, pago_em, cartelas(titulo)').eq('status', 'pago').gte('pago_em', ini).lt('pago_em', fim).order('pago_em')
+  ]);
+  if (rp.error) throw rp.error;
+  const linhas = [];
+  (rp.data || []).forEach((p) => {
+    const c = p.cobrancas || {};
+    linhas.push({ data: p.pago_em, nome: p.nome, ref: c.titulo || '', tipo: NOMES_TIPO[categoriaDe(c)] || 'Cobrança', valor: Number(p.valor_pago || p.valor), recibo: p.id });
+  });
+  ((rn && rn.data) || []).forEach((i) => linhas.push({ data: i.pago_em, nome: i.nome, ref: `${(i.cartelas && i.cartelas.titulo) || 'Cartela'} · nº ${i.numero}`, tipo: 'Cartela', valor: Number(i.valor), recibo: null }));
+  linhas.sort((x, y) => x.data.localeCompare(y.data));
+  const total = linhas.reduce((t, l) => t + l.valor, 0);
+  const porTipo = {};
+  linhas.forEach((l) => { porTipo[l.tipo] = (porTipo[l.tipo] || 0) + l.valor; });
+  const nomeMes = `${MESES[mm - 1]} de ${a}`;
+  const dataCurta = (iso) => new Date(iso).toLocaleDateString('pt-BR');
+  render(casca(`
+    <div class="pilha-p"><h1>Relatório de ${nomeMes}</h1><p class="muted">Tudo o que você confirmou como recebido no mês.</p>${seloPro()}</div>
+    <div class="acoes nao-imprimir">
+      <a class="btn sec peq" href="#/relatorio/${ant}">← ${MESES[(mm + 10) % 12]}</a>
+      ${m < atual ? `<a class="btn sec peq" href="#/relatorio/${prox}">${MESES[mm % 12]} →</a>` : ''}
+    </div>
+    <div class="resumo">
+      <div class="card escuro"><p class="muted pequeno">Recebido em ${MESES[mm - 1]}</p><p class="numero" style="color: var(--lima)">${brl(total)}</p></div>
+      <div class="card"><p class="muted pequeno">Pagamentos</p><p class="numero">${linhas.length}</p></div>
+    </div>
+    ${Object.keys(porTipo).length > 1 ? `<div class="calc">${Object.entries(porTipo).sort((x, y) => y[1] - x[1]).map(([t, v]) => `<div class="lin"><span>${esc(t)}</span><span>${brl(v)}</span></div>`).join('')}</div>` : ''}
+    ${linhas.length ? `<ul class="lista">${linhas.map((l) => `<li class="item"><span class="grow"><span class="titulo-item">${esc(l.nome)}</span><span class="muted pequeno" style="display:block">${dataCurta(l.data)} · ${esc(l.ref)}</span>${l.recibo ? `<a class="pequeno nao-imprimir" href="#/recibo/${l.recibo}">Recibo</a>` : ''}</span><strong>${brl(l.valor)}</strong></li>`).join('')}</ul>`
+      : '<div class="card vazio"><p>Nenhum pagamento confirmado neste mês.</p></div>'}
+    ${linhas.length ? `<div class="acoes nao-imprimir"><button type="button" class="btn" id="csv">Baixar planilha</button><button type="button" class="btn sec" id="imprimir">Imprimir ou salvar em PDF</button></div>` : ''}
+    <p class="muted pequeno">Ajuda a acompanhar o que entrou para o MEI ou o carnê-leão. Mostra só o que você marcou como recebido no app. Confira sempre com o seu contador.</p>
+  `, { voltar: '/conta' }));
+  const csv = $('#csv');
+  if (csv) csv.addEventListener('click', () => {
+    const cel = (t) => `"${String(t).replace(/"/g, '""')}"`;
+    const corpo = [['Data', 'Nome', 'Referente a', 'Tipo', 'Valor'].map(cel).join(';'),
+      ...linhas.map((l) => [dataCurta(l.data), l.nome, l.ref, l.tipo, l.valor.toFixed(2).replace('.', ',')].map(cel).join(';')),
+      ['', '', '', 'Total', total.toFixed(2).replace('.', ',')].map(cel).join(';')].join('\r\n');
+    const blob = new Blob(['﻿' + corpo], { type: 'text/csv;charset=utf-8' });
+    const a2 = document.createElement('a');
+    a2.href = URL.createObjectURL(blob); a2.download = `deixa-comigo-recebidos-${m}.csv`;
+    document.body.appendChild(a2); a2.click(); a2.remove();
+    setTimeout(() => URL.revokeObjectURL(a2.href), 2000);
+    registrar('relatorio_baixado');
+  });
+  const imp = $('#imprimir'); if (imp) imp.addEventListener('click', () => window.print());
 }
 
 // ---------- início ----------

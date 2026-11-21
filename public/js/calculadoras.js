@@ -1,4 +1,4 @@
-// Calculadoras de custo real: carona e preço justo para autônomos.
+// Calculadoras de custo real: carona e preço justo para profissionais e autônomos.
 // Usadas dentro do app (#/calc) e na página pública /calculadoras/.
 import { esc, brl, parseValor, round2 } from './util.js';
 
@@ -41,6 +41,61 @@ export const CALCULADORAS = [
         frase: `Sem dividir, você gasta ${brl(total)} por mês para levar todo mundo.`,
         combinar: { modelo: 'carona', valor: round2(porPessoaMes), frequencia: 'mensal', titulo: 'Carona para o trabalho', rotulo: 'por pessoa, por mês',
           calc: { km_dia: n(v.km_dia), dias: n(v.dias_mes), consumo: n(v.consumo), preco_litro: n(v.preco_litro), desgaste_km: n(v.manutencao_km), pedagio_dia: n(v.pedagio_dia), estacionamento_dia: n(v.estacionamento_dia), km_total: round2(km), combustivel: round2(combustivel), desgaste: round2(manut), pedagio: round2(pedagio), estacionamento: round2(estac), custo_total: round2(total), pessoas_divisao: pessoas, motorista_incluido: true, periodo: 'mês' } }
+      };
+    }
+  },
+  {
+    id: 'aula',
+    nome: 'Preço da aula ou sessão',
+    resumo: 'Para professor, personal, instrutor e terapeuta: quanto cobrar por aula contando preparo, deslocamento e custos.',
+    icone: 'aluno',
+    campos: [
+      { id: 'renda', label: 'Quanto você quer ganhar por mês (R$)', padrao: '4.000' },
+      { id: 'aulas', label: 'Aulas ou sessões dadas por mês', padrao: '80', ajuda: 'Conte só as que são pagas. Ex.: 20 por semana = 80 no mês.' },
+      { id: 'preparo', label: 'Horas de preparo, correção e mensagens por mês', padrao: '20', ajuda: 'Esse tempo não é pago à parte, então entra no preço da aula.' },
+      { id: 'duracao', label: 'Duração de cada aula (horas)', padrao: '1' },
+      { id: 'deslocamento', label: 'Deslocamento por aula (R$)', padrao: '8', ajuda: 'Se a aula é na casa do aluno ou numa academia. Online: 0.' },
+      { id: 'fixos', label: 'Custos fixos por mês (R$)', padrao: '250', ajuda: 'Material, plataforma, sala ou academia, conselho de classe (CREF, CRP, CRN…), internet.' },
+      { id: 'mei', label: 'Imposto MEI (DAS) ou carnê-leão por mês (R$)', padrao: '0' },
+      { id: 'reserva', label: 'Reserva para férias, faltas e imprevistos (%)', padrao: '15', ajuda: 'Profissional autônomo não tem férias pagas nem 13º, e aluno falta.' }
+    ],
+    calcular(v) {
+      const aulas = Math.max(1, n(v.aulas));
+      const fixos = n(v.fixos) + n(v.mei);
+      const base = (n(v.renda) + fixos) / aulas + n(v.deslocamento);
+      const preco = base * (1 + pct(v.reserva));
+      const horas = aulas * Math.max(0.25, n(v.duracao)) + n(v.preparo);
+      const minimo = fixos / aulas + n(v.deslocamento);
+      return {
+        linhas: [['Sua renda por aula', brl(n(v.renda) / aulas)], ['Custos fixos e impostos por aula', brl(fixos / aulas)], ['Deslocamento', brl(n(v.deslocamento))], ['Reserva', brl(preco - base)], ['Horas trabalhadas no mês (com preparo)', hFmt(horas)], ['Sua hora de verdade', brl((n(v.renda)) / Math.max(1, horas))]],
+        destaque: ['Cobre por aula', brl(preco)],
+        frase: `Abaixo de ${brl(minimo)} por aula você paga para trabalhar. Com 2 aulas por semana, a mensalidade fica em ${brl(preco * 2 * 4.33)}.`,
+        combinar: { modelo: 'aluno', rota: '/aluno/novo', valor: round2(preco * 4.33), frequencia: 'mensal', titulo: 'Aulas', rotulo: 'por mês (1 aula por semana)' }
+      };
+    }
+  },
+  {
+    id: 'pacote',
+    nome: 'Mensalidade ou pacote de aulas',
+    resumo: 'Transforme o preço da aula em mensalidade ou pacote fechado, com desconto que ainda vale a pena.',
+    icone: 'aluno',
+    campos: [
+      { id: 'preco', label: 'Preço de uma aula avulsa (R$)', padrao: '90' },
+      { id: 'semana', label: 'Aulas por semana', padrao: '2' },
+      { id: 'desconto', label: 'Desconto da mensalidade sobre a avulsa (%)', padrao: '10', ajuda: 'Quem paga por mês costuma ganhar um desconto e você ganha previsibilidade.' },
+      { id: 'pacote', label: 'Aulas no pacote fechado', padrao: '10' },
+      { id: 'desconto_pacote', label: 'Desconto do pacote (%)', padrao: '5' }
+    ],
+    calcular(v) {
+      const porMes = n(v.semana) * 4.33;
+      const cheia = n(v.preco) * porMes;
+      const mensal = cheia * (1 - pct(v.desconto));
+      const pacote = n(v.preco) * n(v.pacote) * (1 - pct(v.desconto_pacote));
+      return {
+        linhas: [['Aulas por mês, em média', `${round2(porMes).toLocaleString('pt-BR')} (o mês tem 4,33 semanas)`], ['Valor cheio do mês', brl(cheia)], ['Mensalidade com desconto', brl(mensal)], ['Cada aula sai por', brl(porMes ? mensal / porMes : 0)], [`Pacote de ${n(v.pacote)} aulas`, brl(pacote)]],
+        destaque: ['Mensalidade', brl(mensal)],
+        frase: `Cobrar "4 semanas" por mês esconde ${brl(n(v.preco) * n(v.semana) * 0.33)} de aulas todo mês: use 4,33.`,
+        combinar: { modelo: 'aluno', rota: '/aluno/novo', valor: round2(mensal), frequencia: 'mensal', titulo: 'Aulas', rotulo: 'por mês' }
       };
     }
   },
@@ -101,36 +156,6 @@ export const CALCULADORAS = [
         destaque: ['Preço da encomenda', brl(preco)],
         frase: `Só os custos já são ${brl(custo)}. Cobrar menos que ${brl(custo + mao)} é trabalhar de graça.`,
         combinar: null
-      };
-    }
-  },
-  {
-    id: 'pedreiro',
-    nome: 'Pedreiro e obras',
-    resumo: 'Diária e preço por metro quadrado, com ferramentas, transporte e ajudante.',
-    icone: 'obra',
-    campos: [
-      { id: 'renda', label: 'Quanto você quer ganhar por mês (R$)', padrao: '4.500' },
-      { id: 'dias', label: 'Dias trabalhados por mês', padrao: '22' },
-      { id: 'transporte', label: 'Transporte por dia (R$)', padrao: '20' },
-      { id: 'ajudante', label: 'Ajudante por dia, se tiver (R$)', padrao: '0' },
-      { id: 'ferramentas', label: 'Ferramentas e reposição por mês (R$)', padrao: '150' },
-      { id: 'mei', label: 'Imposto MEI (DAS) por mês, se tiver (R$)', padrao: '0' },
-      { id: 'reserva', label: 'Reserva para chuva, dias parados e imprevistos (%)', padrao: '15' },
-      { id: 'm2', label: 'Metros quadrados que você faz por dia (opcional)', padrao: '0', ajuda: 'Ex.: piso, reboco. Para calcular o preço por m².' }
-    ],
-    calcular(v) {
-      const dias = Math.max(1, n(v.dias));
-      const fixos = n(v.ferramentas) + n(v.mei);
-      const base = (n(v.renda) + fixos) / dias + n(v.transporte) + n(v.ajudante);
-      const diaria = base * (1 + pct(v.reserva));
-      const linhas = [['Sua renda por dia', brl(n(v.renda) / dias)], ['Ferramentas e impostos por dia', brl(fixos / dias)], ['Transporte e ajudante', brl(n(v.transporte) + n(v.ajudante))], ['Reserva', brl(diaria - base)]];
-      if (n(v.m2) > 0) linhas.push(['Preço por m²', brl(diaria / n(v.m2))]);
-      return {
-        linhas,
-        destaque: ['Cobre por dia', brl(diaria)],
-        frase: `Uma obra de 10 dias deve sair por pelo menos ${brl(diaria * 10)} só de mão de obra.`,
-        combinar: { modelo: 'mensalidade', valor: round2(diaria), frequencia: 'semanal', titulo: 'Obra', rotulo: 'por dia' }
       };
     }
   },

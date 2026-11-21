@@ -45,7 +45,7 @@ function uma(calc) {
   montarCalculadora(document.getElementById('calc-area'), calc, (dados) => {
     registrar('calculadora_combinar', { calc: calc.id });
     guardarPreenchimento(dados);
-    location.href = `/app/#/combinar/${dados.modelo}`;
+    location.href = `/app/#${dados.rota || `/combinar/${dados.modelo}`}`;
   });
 }
 

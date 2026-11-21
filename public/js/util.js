@@ -86,7 +86,7 @@ export async function copiar(texto) {
 
 export const NOMES_TIPO = {
   carona: 'Carona', emprestimo: 'Empréstimo', racha: 'Racha',
-  vaquinha: 'Vaquinha', viagem: 'Viagem', mensalidade: 'Mensalidade', venda: 'Venda parcelada', cartela: 'Cartela'
+  vaquinha: 'Vaquinha', viagem: 'Viagem', mensalidade: 'Mensalidade', venda: 'Venda parcelada', cartela: 'Cartela', aluno: 'Mensalidade'
 };
 
 // ---------- máscaras ----------
@@ -141,4 +141,41 @@ export function ativarMascaras(raiz = document) {
   raiz.addEventListener('focusout', (e) => {
     if (e.target instanceof HTMLInputElement) aplicar(e.target);
   });
+}
+
+// Valor em reais por extenso, para recibos. Ex.: 1234.5 → "mil duzentos e trinta e quatro reais e cinquenta centavos"
+export function valorPorExtenso(valor) {
+  const U = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+  const D = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+  const C = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+  const ate999 = (n) => {
+    if (n === 0) return '';
+    if (n === 100) return 'cem';
+    const c = Math.floor(n / 100); const r = n % 100;
+    const partes = [];
+    if (c) partes.push(C[c]);
+    if (r) partes.push(r < 20 ? U[r] : D[Math.floor(r / 10)] + (r % 10 ? ' e ' + U[r % 10] : ''));
+    return partes.join(' e ');
+  };
+  const total = Math.round(Math.abs(Number(valor) || 0) * 100);
+  const reais = Math.floor(total / 100); const cent = total % 100;
+  const grupos = [];
+  let n = reais; while (n > 0) { grupos.push(n % 1000); n = Math.floor(n / 1000); }
+  const escalas = [['', ''], ['mil', 'mil'], ['milhão', 'milhões'], ['bilhão', 'bilhões']];
+  const pedacos = [];
+  for (let i = grupos.length - 1; i >= 0; i--) {
+    const g = grupos[i]; if (!g) continue;
+    let txt = i === 1 && g === 1 ? 'mil' : ate999(g) + (i ? ' ' + escalas[i][g === 1 ? 0 : 1] : '');
+    pedacos.push({ txt, g, i });
+  }
+  let r = '';
+  pedacos.forEach((p, k) => {
+    if (k === 0) r = p.txt;
+    else r += (p.i === 0 && (p.g < 100 || p.g % 100 === 0) ? ' e ' : p.i === 0 ? ' ' : ', ') + p.txt;
+  });
+  const grande = grupos.length > 2 && grupos[0] === 0 && grupos[1] === 0;
+  let fim = '';
+  if (reais) fim = `${r}${grande ? ' de' : ''} ${reais === 1 ? 'real' : 'reais'}`;
+  if (cent) fim += `${reais ? ' e ' : ''}${ate999(cent)} ${cent === 1 ? 'centavo' : 'centavos'}`;
+  return fim || 'zero reais';
 }

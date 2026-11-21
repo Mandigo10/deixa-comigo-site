@@ -6,7 +6,8 @@ export const MODELOS = {
   vaquinha: { nome: 'Vaquinha', curto: 'Vaquinha' },
   viagem: { nome: 'Viagem parcelada', curto: 'Viagem' },
   mensalidade: { nome: 'Mensalidade do grupo', curto: 'Mensalidade' },
-  venda: { nome: 'Venda parcelada', curto: 'Venda' }
+  venda: { nome: 'Venda parcelada', curto: 'Venda' },
+  aluno: { nome: 'Mensalidade de aluno', curto: 'Aluno' }
 };
 
 // Categoria de exibição: vendas parceladas usam a estrutura de parcelas, marcadas nos detalhes
@@ -38,6 +39,10 @@ export function valorDividido(cb, participantes) {
 export function textoRegra(cb, valor) {
   const v = brl(valor ?? cb.valor_por_pessoa);
   if (cb.regra === 'unico') return `${v} por pessoa${cb.prazo ? `, até ${dataBR(cb.prazo)}` : ''}`;
+  if (categoriaDe(cb) === 'aluno') {
+    const dia = Number(String(cb.inicio).slice(8, 10));
+    return `${v} por mês, todo dia ${dia}`;
+  }
   if (cb.parcelas && categoriaDe(cb) === 'venda') {
     const dia = Number(String(cb.inicio).slice(8, 10));
     return `${cb.parcelas}x de ${v}, todo dia ${dia}, a partir de ${dataBR(cb.inicio)}`;

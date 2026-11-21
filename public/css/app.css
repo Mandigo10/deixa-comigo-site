@@ -181,3 +181,14 @@ dialog.janela::backdrop { background: rgba(22,20,31,.45); }
 .vit-item { display: flex; flex-direction: column; gap: 4px; }
 .vit-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #ECEAF4; }
 .vit-item input { min-height: 40px; font-size: 0.85rem; }
+.plano.top .tom, .escuro .tom { background: transparent; color: var(--branco); border-color: var(--branco); }
+.plano.top .tom[aria-pressed="true"], .escuro .tom[aria-pressed="true"] { background: var(--lima); color: var(--ink); border-color: var(--lima); }
+/* Recibo e relatório: impressão limpa */
+.recibo { background: var(--branco); border: 2px solid var(--ink); border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+.recibo .assinatura { margin-top: 28px; border-top: 1.5px solid var(--ink); padding-top: 8px; text-align: center; }
+@media print {
+  .nav, .topo, .nao-imprimir, #toast { display: none !important; }
+  body { background: #fff !important; }
+  .casca { padding: 0 !important; max-width: none !important; }
+  .recibo { border: 1.5px solid #000; }
+}

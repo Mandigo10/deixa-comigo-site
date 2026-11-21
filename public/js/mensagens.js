@@ -16,7 +16,11 @@ export function gerarMensagem({ tipo, tom, momento, nome, valor, titulo, vencime
   let msg = '';
 
   if (momento === 'combinado') {
-    if (tipo === 'venda') {
+    if (tipo === 'aluno') {
+      if (tom === 'leve') msg = `Oi, ${n}! Tudo bem? Segue a mensalidade (${titulo}): ${valor}${ate}. O Pix está aqui: ${link} Obrigado pela confiança!`;
+      else if (tom === 'neutro') msg = `Oi, ${n}. Mensalidade ${titulo}: ${valor}${vencimento ? `, vencimento ${vencimento}` : ''}. Pix: ${link}`;
+      else msg = `Oi, ${n}. A mensalidade ${titulo} (${valor}) vence${vencimento ? ` em ${vencimento}` : ' agora'}. Peço que pague até a data. Pix: ${link}`;
+    } else if (tipo === 'venda') {
       if (tom === 'leve') msg = `Oi, ${n}! Passando para lembrar da ${titulo}: ${valor}${ate}. O Pix está aqui: ${link} Obrigada pela preferência!`;
       else if (tom === 'neutro') msg = `Oi, ${n}. ${titulo}: ${valor}${vencimento ? `, vencimento ${vencimento}` : ''}. Pix: ${link}`;
       else msg = `Oi, ${n}. A ${titulo} (${valor}) vence${vencimento ? ` em ${vencimento}` : ' agora'}. Peço que pague até a data. Pix: ${link}`;
@@ -94,7 +98,9 @@ export function gerarDivulgacao({ modelo, titulo, regra, vagas, dividir, link, p
 export function gerarConvite({ tom, nome, titulo, regra, link, plano, categoria }) {
   const n = primeiroNome(nome);
   let msg;
-  if (categoria === 'venda') {
+  if (categoria === 'aluno') {
+    msg = `Oi, ${n}! Para ficar mais prático, agora organizo as mensalidades pelo Deixa Comigo: ${titulo}, ${regra}. Todo mês você recebe o Pix certinho, sem precisar lembrar. Confirme aqui: ${link}`;
+  } else if (categoria === 'venda') {
     msg = `Oi, ${n}! Registrei sua compra no Deixa Comigo: ${titulo}, ${regra}. Assim você recebe o Pix certinho em cada data. Toque em "Topo" para confirmar: ${link}`;
   } else if (tom === 'leve') {
     msg = `Oi, ${n}! Pra gente nunca precisar ficar falando de dinheiro depois, coloquei nosso combinado no Deixa Comigo: ${titulo}, ${regra}. Dá uma olhada e, se estiver ok, toca em "Topo": ${link}`;
@@ -103,5 +109,21 @@ export function gerarConvite({ tom, nome, titulo, regra, link, plano, categoria 
   } else {
     msg = `Oi, ${n}. Sobre "${titulo}": ${regra}. Confirme que está de acordo neste link: ${link}`;
   }
+  return assinar(msg, plano);
+}
+
+// Aviso de reajuste anual para um aluno ou cliente
+export function avisoReajuste({ tom, nome, servico, de, para, pct, apartir, plano }) {
+  const n = primeiroNome(nome);
+  let msg;
+  if (tom === 'firme') msg = `Oi, ${n}. Aviso: a partir de ${apartir}, a mensalidade de ${servico} passa de ${de} para ${para} (reajuste anual de ${pct}).`;
+  else if (tom === 'neutro') msg = `Oi, ${n}. Comunico com antecedência que, a partir de ${apartir}, a mensalidade de ${servico} passa de ${de} para ${para}, reajuste anual de ${pct}. Qualquer dúvida, estou à disposição.`;
+  else msg = `Oi, ${n}! Tudo bem? Passando pra avisar com antecedência: a partir de ${apartir}, a mensalidade de ${servico} passa de ${de} para ${para} (reajuste anual de ${pct}). Muito obrigado pela confiança de sempre, é um prazer acompanhar você!`;
+  return assinar(msg, plano);
+}
+
+// Recibo em texto, para mandar no WhatsApp
+export function textoRecibo({ nome, valor, extenso, referente, data, recebedor, plano }) {
+  const msg = `RECIBO\n\nRecebi de ${nome} a quantia de ${valor} (${extenso}), referente a ${referente}.\n\n${data}\n${recebedor}`;
   return assinar(msg, plano);
 }

@@ -34,6 +34,9 @@ function extrato(d, c) {
     (det.gastos || []).forEach((g) => linhas.push([g.descricao, brl(g.valor)]));
     linhas.push(['Total', brl(det.total_gastos)]);
     linhas.push(['Dividido entre', `${det.pessoas_divisao} pessoas`]);
+  } else if (det.categoria === 'aluno') {
+    if (det.servico) linhas.push(['Serviço', det.servico]);
+    if (c.descricao) linhas.push(['Observação', c.descricao]);
   } else if (det.categoria === 'venda') {
     linhas.push(['Compra', det.produto || c.titulo]);
     linhas.push(['Valor total da compra', brl(det.total)]);
