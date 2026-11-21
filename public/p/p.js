@@ -95,6 +95,7 @@ async function iniciar() {
       <p><strong>Conforme combinado.</strong> ${c.aceito_em ? `Você topou em ${new Date(c.aceito_em).toLocaleDateString('pt-BR')}.` : ((c.detalhes || {}).categoria === 'aluno' ? 'Esta é a sua mensalidade.' : 'Esta é uma cobrança do combinado do grupo.')}</p>
       ${Number(c.pessoas) > 1 ? `<p class="muted pequeno">${c.pagos} de ${c.pessoas} pessoas já pagaram${c.tipo === 'vaquinha' ? ` · ${brl(c.arrecadado)} de ${brl(c.total)} arrecadados` : ''}.</p>
       <div class="barra" aria-hidden="true"><span style="width: ${Math.round((Number(c.pagos) / Number(c.pessoas)) * 100)}%"></span></div>` : ''}
+      ${c.cofre_token ? `<a class="btn sec peq" href="/app/#/cofre/${esc(c.cofre_token)}" style="align-self: flex-start">Acompanhar o cofrinho do grupo</a>` : ''}
     </div>` : ''}
     ${extrato(devido, c)}
     ${avisou ? `<div class="card pilha-p" style="border-color: var(--roxo)"><h2>Você já avisou que pagou</h2><p class="muted">${esc(credor)} vai conferir e confirmar. Não precisa fazer mais nada.</p></div>` : ''}

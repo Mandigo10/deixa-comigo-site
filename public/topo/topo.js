@@ -66,7 +66,7 @@ async function iniciar() {
     app.innerHTML = casca('<div class="card pilha"><h1>Link inválido</h1><p class="muted">Confira se o link foi copiado inteiro, ou peça um novo para quem te convidou.</p></div>');
     return;
   }
-  const { data: k, error } = await sb.rpc('combinado_publico_v2', { p_token: token });
+  const { data: k, error } = await sb.rpc('combinado_publico_v3', { p_token: token });
   if (error || !k) {
     app.innerHTML = casca('<div class="card pilha"><h1>Combinado não encontrado</h1><p class="muted">Ele pode ter sido apagado, ou você foi retirado dele. Fale com quem te convidou.</p></div>');
     return;
@@ -98,6 +98,7 @@ async function iniciar() {
     ${lista ? ocupacaoHTML(k) : ''}
     ${linkGrupo ? `<div class="card pilha-p"><h2>Chame mais gente</h2><p class="muted">${k.valor_modo === 'dividir' ? 'Quanto mais gente, mais barato para todo mundo.' : 'Ainda tem vaga.'}</p>
       <div class="acoes"><a class="btn peq" href="${esc(linkWhatsApp('', `Entra nessa: ${k.titulo}. ${linkGrupo}`))}" target="_blank" rel="noopener">Mandar no WhatsApp</a><button type="button" class="btn sec peq" id="copiar-grupo">Copiar link</button></div></div>` : ''}
+    ${k.cofre_token ? `<a class="card pilha-p" href="/app/#/cofre/${esc(k.cofre_token)}" style="text-decoration: none; color: inherit; border: 2px solid var(--ink)"><strong>Acompanhe o cofrinho do grupo</strong><span class="muted pequeno">Veja quanto já foi arrecadado e quanto falta. →</span></a>` : ''}
     ${detalhesHTML(k)}
     <div class="card pilha-p">
       <h2>Como funciona</h2>

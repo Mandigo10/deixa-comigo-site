@@ -1,3 +1,4 @@
+import { confirmar } from './dialogo.js';
 // Vitrine: fotos do que está sendo oferecido (produto, presente, viagem...) nas páginas por link.
 import { sb } from './sb.js';
 import { esc, toast } from './util.js';
@@ -79,7 +80,7 @@ export function montarVitrineDono(el, { alvo, id, uid }) {
   el.onclick = async (e) => {
     const b = e.target.closest('[data-tirar]');
     if (!b) return;
-    if (!window.confirm('Apagar esta foto?')) return;
+    if (!await confirmar('Apagar esta foto?')) return;
     const f = (cache.get(chave) || []).find((x) => x.id === b.dataset.tirar);
     const { error } = await sb.from('vitrine_fotos').delete().eq('id', f.id);
     if (error) { toast('Não deu certo agora.', 'erro'); return; }

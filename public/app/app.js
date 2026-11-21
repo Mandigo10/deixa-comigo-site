@@ -3,6 +3,7 @@ import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
 import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome, ativarMascaras, formatarTelefone, formatarChave, valorPorExtenso } from '../js/util.js';
 import { nomePlano, LIBERADO_ATE } from '../js/planos.js';
+import { confirmar, perguntar, avisar } from '../js/dialogo.js';
 import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS, avisoReajuste, textoRecibo } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
@@ -153,6 +154,8 @@ const ROTAS = [
   [/^\/contatos$/, () => telaContatos()],
   [/^\/agenda$/, () => telaAgenda()],
   [/^\/alunos$/, () => telaAlunos()],
+  [/^\/cofre\/([0-9a-f]{32})$/, (t) => telaCofre(t)],
+  [/^\/cofres$/, () => telaCofres()],
   [/^\/aluno\/novo$/, () => telaFormAluno()],
   [/^\/alunos\/reajuste$/, () => telaReajuste()],
   [/^\/recibo\/([0-9a-f-]{36})$/, (id) => telaRecibo(id)],
@@ -173,14 +176,21 @@ async function rotear() {
     let caminho = location.hash.replace(/^#/, '') || '/';
     if (/access_token|type=|error=/.test(caminho)) { history.replaceState(null, '', '/app/#/'); caminho = '/'; }
     const publica = /^\/(entrar|cadastro|esqueci)$/.test(caminho);
+    const deCofre = /^\/(cofre\/[0-9a-f]{32}|cofres)$/.test(caminho);
     if (!estado.sessao) {
-      if (!publica) { location.hash = '/entrar'; return; }
+      if (!publica && !/^\/cofre\//.test(caminho)) { location.hash = '/entrar'; return; }
     } else {
-      if (publica) { location.hash = '/'; return; }
+      if (publica) {
+        let depois = null; try { depois = sessionStorage.getItem('dxcmg_depois'); sessionStorage.removeItem('dxcmg_depois'); } catch (e) { /* sem armazenamento */ }
+        location.hash = depois && /^\/cofre\/[0-9a-f]{32}$/.test(depois) ? depois : '/'; return;
+      }
       if (!estado.perfilCarregado) await carregarPerfil();
       if (!estado.contatosCarregados) await carregarContatos();
       if (!estado.chavesCarregadas) await carregarChaves();
-      if ((!estado.perfil || !estado.perfil.chave_pix) && !['/perfil', '/nova-senha', '/ajuda'].includes(caminho)) { location.hash = '/perfil'; return; }
+      if ((!estado.perfil || !estado.perfil.chave_pix) && !deCofre && !['/perfil', '/nova-senha', '/ajuda'].includes(caminho)) {
+        if (caminho === '/') { const { data: seg } = await sb.rpc('meus_cofres'); if (seg && seg.length) { location.hash = '/cofres'; return; } }
+        location.hash = '/perfil'; return;
+      }
     }
     for (const [re, fn] of ROTAS) {
       const m = caminho.match(re);
@@ -334,7 +344,7 @@ function telaPerfil() {
     });
     $$('[data-apagar-chave]').forEach((b) => b.addEventListener('click', async () => {
       const k = estado.chaves.find((x) => x.id === b.dataset.apagarChave);
-      if (!window.confirm(`Apagar a chave "${k.apelido}"? O que usava essa chave passa a usar a principal.`)) return;
+      if (!await confirmar(`Apagar a chave "${k.apelido}"? O que usava essa chave passa a usar a principal.`)) return;
       const { error } = await sb.from('chaves_pix').delete().eq('id', k.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       estado.chaves = estado.chaves.filter((x) => x.id !== k.id);
@@ -401,6 +411,7 @@ async function telaPainel() {
   ]).then((r) => { resCartelas = r[2]; resBoloes = r[3]; return r.slice(0, 2); });
   if (resC.error) throw resC.error;
   if (resK.error) throw resK.error;
+  const { data: seguidos } = await sb.rpc('meus_cofres');
   const cartelas = (resCartelas && resCartelas.data) || [];
   const boloes = (resBoloes && resBoloes.data) || [];
   const cobrancas = resC.data || [];
@@ -471,6 +482,7 @@ async function telaPainel() {
       ${tarefas.map((t) => `<li><a class="item" href="${t.href}"><span class="grow">${t.txt}<span class="muted pequeno" style="display:block">${esc(t.titulo)}</span></span><span class="tag ${t.tag === 'Confirmar' ? 'avisou_pago' : t.tag === 'Convidar' ? 'neutra' : 'pendente'}">${t.tag}</span></a></li>`).join('')}
     </ul></section>` : ''}
     ${alunos.length ? `<a class="item card" href="#/alunos" style="text-decoration: none; color: inherit"><span class="icone roxo">${ICONE.aluno}</span><span class="grow"><span class="titulo-item">Alunos e clientes</span><span class="muted pequeno" style="display:block">${alunos.length} ${alunos.length === 1 ? 'ativo' : 'ativos'} · ${brl(alunos.filter((k) => k.status === 'ativo').reduce((t, k) => t + (k.combinado_membros || []).filter((m) => m.ativo).reduce((u, m) => u + Number(m.valor || k.valor_por_pessoa), 0), 0))} por mês</span></span><span class="tag neutra">Ver</span></a>` : ''}
+    ${seguidos && seguidos.length ? `<section class="pilha-p" aria-labelledby="t-seg"><h2 id="t-seg">Cofrinhos que você acompanha</h2><ul class="lista">${seguidos.map(itemCofreSeguido).join('')}</ul></section>` : ''}
     <section class="pilha-p" aria-labelledby="t-comb">
       <div class="linha-flex entre"><h2 id="t-comb">Combinados</h2><a class="btn peq" href="#/nova">${ICONE.mais}Novo</a></div>
       ${combinados.length ? `<ul class="lista">${combinados.map(itemCombinado).join('')}</ul>` : `
@@ -627,6 +639,7 @@ function telaFormCombinado(modelo) {
       </div>
       <div id="resumo" class="calc" aria-live="polite"></div>
       <div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(f.tom)}</div>
+      ${cofreFormHTML()}
       ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco lima" type="submit">Criar combinado</button>
@@ -793,6 +806,7 @@ function telaFormCombinado(modelo) {
     const btn = $('#f button[type=submit]');
     btn.disabled = true; btn.textContent = 'Criando…';
     k.chave_id = lerChaveId();
+    if ($('#cofre') && $('#cofre').checked) { k.cofre_token = novoToken(); k.cofre_nomes = $('#cofre-nomes').checked; }
     const { data: novo, error } = await sb.from('combinados').insert(k).select().single();
     if (error) { btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(error); return; }
     if (pessoas.length) {
@@ -917,6 +931,7 @@ async function telaCombinado(id) {
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
       ${ehAluno ? alunoHTML() : listaHTML(ms)}
+      ${ehAluno || categoriaDe(k) === 'venda' ? '' : cofreDonoHTML(k)}
       ${trocaChaveHTML('combinados', k.id, k.chave_id)}
       <div id="vitrine-dono" data-alvo="combinado" data-id="${k.id}"></div>
       <p class="muted pequeno">${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? 'Quando você fechar a lista, o app calcula o valor final e cria a cobrança de cada um.' : 'O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.'}</p>
@@ -986,7 +1001,7 @@ async function telaCombinado(id) {
       const ok = await copiar(linkTopo(m));
       toast(ok ? 'Link do convite copiado.' : 'Não consegui copiar o link.', ok ? 'ok' : 'erro');
     } else if (acao === 'remover') {
-      if (!window.confirm(`Tirar ${m.nome} do combinado? As próximas cobranças não vão incluir essa pessoa.`)) return;
+      if (!await confirmar(`Tirar ${m.nome} do combinado? As próximas cobranças não vão incluir essa pessoa.`)) return;
       const { error: e1 } = await sb.from('combinado_membros').update({ ativo: false }).eq('id', m.id);
       if (e1) { toast(traduzErro(e1), 'erro'); return; }
       m.ativo = false;
@@ -1006,21 +1021,40 @@ async function telaCombinado(id) {
     } else if (acao === 'fechar-cobrar') {
       const ativos = k.combinado_membros.filter((x) => x.ativo).length;
       if (!ativos) { toast('Ninguém entrou na lista ainda.', 'erro'); return; }
-      if (!window.confirm(`Fechar a lista com ${ativos} pessoa${ativos === 1 ? '' : 's'}? Cada um vai pagar ${brl(k.valor_por_pessoa)}.`)) return;
+      if (!await confirmar(`Fechar a lista com ${ativos} pessoa${ativos === 1 ? '' : 's'}? Cada um vai pagar ${brl(k.valor_por_pessoa)}.`)) return;
       const { error: e6 } = await sb.from('combinados').update({ entrada_aberta: false }).eq('id', k.id);
       if (e6) { toast(traduzErro(e6), 'erro'); return; }
       await recarregar();
       toast('Lista fechada! Agora envie a cobrança para cada um.');
     } else if (acao === 'pausar' || acao === 'retomar' || acao === 'encerrar') {
-      if (acao === 'encerrar' && !window.confirm('Encerrar este combinado? Não serão criadas novas cobranças. As que já existem continuam.')) return;
+      if (acao === 'encerrar' && !await confirmar('Encerrar este combinado? Não serão criadas novas cobranças. As que já existem continuam.')) return;
       const status = acao === 'pausar' ? 'pausado' : acao === 'retomar' ? 'ativo' : 'encerrado';
       const { error: e2 } = await sb.from('combinados').update({ status }).eq('id', k.id);
       if (e2) { toast(traduzErro(e2), 'erro'); return; }
       k.status = status;
       toast(status === 'pausado' ? 'Combinado pausado.' : status === 'ativo' ? 'Combinado retomado.' : 'Combinado encerrado.');
       desenhar();
+    } else if (acao === 'cofre-ligar' || acao === 'cofre-desligar') {
+      if (acao === 'cofre-desligar' && !await confirmar('Desligar o link do cofrinho? Quem tem o link para de ver os valores. Você pode criar um link novo depois.')) return;
+      const mud = acao === 'cofre-ligar' ? { cofre_token: novoToken(), cofre_nomes: !!($('#cofre-nomes-k') && $('#cofre-nomes-k').checked) } : { cofre_token: null };
+      const { error: e9 } = await sb.from('combinados').update(mud).eq('id', k.id);
+      if (e9) { toast(traduzErro(e9), 'erro'); return; }
+      Object.assign(k, mud); desenhar();
+      registrar(acao === 'cofre-ligar' ? 'cofre_criado' : 'cofre_desligado');
+    } else if (acao === 'cofre-nomes') {
+      const v = !k.cofre_nomes;
+      const { error: e10 } = await sb.from('combinados').update({ cofre_nomes: v }).eq('id', k.id);
+      if (e10) { toast(traduzErro(e10), 'erro'); return; }
+      k.cofre_nomes = v; desenhar();
+      toast(v ? 'Agora o cofrinho mostra quem pagou quanto.' : 'O cofrinho agora mostra só os totais.');
+    } else if (acao === 'cofre-copiar') {
+      const ok = await copiar(linkCofre(k.cofre_token));
+      toast(ok ? 'Link do cofrinho copiado.' : 'Não consegui copiar.', ok ? 'ok' : 'erro');
+    } else if (acao === 'cofre-whats') {
+      window.open(linkWhatsApp('', mensagemCofre(k.titulo, linkCofre(k.cofre_token), estado.perfil.plano)), '_blank', 'noopener');
+      registrar('cofre_divulgado');
     } else if (acao === 'mudarvalor') {
-      const t = window.prompt(`Novo valor da mensalidade (hoje ${brl(k.valor_por_pessoa)}). Vale para as próximas cobranças; as que já foram criadas não mudam.`, String(k.valor_por_pessoa).replace('.', ','));
+      const t = await perguntar(`Hoje é ${brl(k.valor_por_pessoa)}. O valor novo vale para as próximas cobranças; as que já foram criadas não mudam.`, String(k.valor_por_pessoa).replace('.', ','), { titulo: 'Novo valor da mensalidade', modo: 'decimal' });
       if (t === null) return;
       const v = round2(parseValor(t));
       if (!(v > 0 && v < 10000000)) { toast('Valor inválido.', 'erro'); return; }
@@ -1038,13 +1072,13 @@ async function telaCombinado(id) {
       k.detalhes = detalhes; desenhar();
       registrar('reajuste_avisado');
     } else if (acao === 'cancelarreajuste') {
-      if (!window.confirm('Cancelar o reajuste agendado? A mensalidade continua com o valor de hoje.')) return;
+      if (!await confirmar('Cancelar o reajuste agendado? A mensalidade continua com o valor de hoje.')) return;
       const detalhes = { ...k.detalhes }; delete detalhes.reajuste;
       const { error: e8 } = await sb.from('combinados').update({ detalhes }).eq('id', k.id);
       if (e8) { toast(traduzErro(e8), 'erro'); return; }
       k.detalhes = detalhes; toast('Reajuste cancelado.'); desenhar();
     } else if (acao === 'apagar') {
-      if (!window.confirm('Apagar este combinado de vez? As cobranças já criadas continuam na sua lista.')) return;
+      if (!await confirmar('Apagar este combinado de vez? As cobranças já criadas continuam na sua lista.')) return;
       const { error: e3 } = await sb.from('combinados').delete().eq('id', k.id);
       if (e3) { toast(traduzErro(e3), 'erro'); return; }
       toast('Combinado apagado.'); go('/');
@@ -1378,14 +1412,14 @@ async function telaCobranca(id) {
     } else if (acao === 'naopago' || acao === 'desfazer') {
       if (await atualizarP(p, { status: 'pendente', valor_pago: 0, pago_em: null, avisou_pago_em: null })) desenhar();
     } else if (acao === 'concluir' || acao === 'reabrir' || acao === 'cancelar') {
-      if (acao === 'cancelar' && !window.confirm('Cancelar esta cobrança? Os links de pagamento param de funcionar.')) return;
+      if (acao === 'cancelar' && !await confirmar('Cancelar esta cobrança? Os links de pagamento param de funcionar.')) return;
       const status = acao === 'reabrir' ? 'aberta' : acao === 'concluir' ? 'concluida' : 'cancelada';
       const { error: e3 } = await sb.from('cobrancas').update({ status }).eq('id', c.id);
       if (e3) { toast(traduzErro(e3), 'erro'); return; }
       if (status === 'cancelada') { toast('Cobrança cancelada.'); go('/'); return; }
       c.status = status; desenhar();
     } else if (acao === 'apagar') {
-      if (!window.confirm('Apagar esta cobrança de vez? Isso não pode ser desfeito.')) return;
+      if (!await confirmar('Apagar esta cobrança de vez? Isso não pode ser desfeito.')) return;
       const { error: e4 } = await sb.from('cobrancas').delete().eq('id', c.id);
       if (e4) { toast(traduzErro(e4), 'erro'); return; }
       toast('Cobrança apagada.'); go('/');
@@ -1672,7 +1706,7 @@ async function telaCartela(id) {
       if (e2) { toast(traduzErro(e2), 'erro'); return; }
       toast('Marcado como pago.'); await recarregar();
     } else if (acao === 'liberar') {
-      if (!window.confirm(`Liberar ${rotulo(c, n)}? Ele volta a ficar livre para outra pessoa.`)) return;
+      if (!await confirmar(`Liberar ${rotulo(c, n)}? Ele volta a ficar livre para outra pessoa.`)) return;
       const { error: e3 } = await sb.from('cartela_itens').delete().eq('cartela_id', c.id).eq('numero', n);
       if (e3) { toast(traduzErro(e3), 'erro'); return; }
       sel = null; toast('Liberado.'); await recarregar();
@@ -1691,7 +1725,7 @@ async function telaCartela(id) {
       if (e4) { toast(traduzErro(e4), 'erro'); return; }
       await recarregar();
     } else if (acao === 'apagar') {
-      if (!window.confirm('Apagar esta cartela e tudo que foi lançado nela? Isso não pode ser desfeito.')) return;
+      if (!await confirmar('Apagar esta cartela e tudo que foi lançado nela? Isso não pode ser desfeito.')) return;
       const { error: e5 } = await sb.from('cartelas').delete().eq('id', c.id);
       if (e5) { toast(traduzErro(e5), 'erro'); return; }
       toast('Cartela apagada.'); go('/');
@@ -2056,7 +2090,7 @@ async function telaBolao(id) {
       if (acao === 'pago') toast(`${primeiroNome(c.nome)}: pago.`);
       sel = null; await recarregar();
     } else if (acao === 'remover') {
-      if (!window.confirm(`Tirar ${c.nome} do bolão? ${c.status === 'pago' ? 'Ela já pagou: combine a devolução por fora.' : ''}`)) return;
+      if (!await confirmar(`Tirar ${c.nome} do bolão? ${c.status === 'pago' ? 'Ela já pagou: combine a devolução por fora.' : ''}`)) return;
       const { error } = await sb.from('bolao_cotas').delete().eq('id', c.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       sel = null; toast('Removido.'); await recarregar();
@@ -2123,12 +2157,12 @@ async function telaBolao(id) {
       toast(linhas.length === 1 ? 'Jogo salvo!' : `${linhas.length} jogos salvos!`);
       buscou = false; await recarregar();
     } else if (acao === 'tirar-jogo') {
-      if (!window.confirm('Apagar este jogo?')) return;
+      if (!await confirmar('Apagar este jogo?')) return;
       const { error } = await sb.from('bolao_jogos').delete().eq('id', bt.dataset.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       await recarregar();
     } else if (acao === 'tirar-foto') {
-      if (!window.confirm('Apagar esta foto do canhoto? Os jogos já salvos continuam.')) return;
+      if (!await confirmar('Apagar esta foto do canhoto? Os jogos já salvos continuam.')) return;
       const f = s.fotos.find((x) => x.id === bt.dataset.id);
       const { error } = await sb.from('bolao_fotos').delete().eq('id', f.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
@@ -2139,7 +2173,7 @@ async function telaBolao(id) {
       if (error) { toast(traduzErro(error), 'erro'); return; }
       await recarregar();
     } else if (acao === 'apagar') {
-      if (!window.confirm('Apagar este bolão, a lista de quem entrou, os jogos e as fotos? Isso não pode ser desfeito.')) return;
+      if (!await confirmar('Apagar este bolão, a lista de quem entrou, os jogos e as fotos? Isso não pode ser desfeito.')) return;
       const caminhos = s.fotos.map((f) => f.caminho);
       const { error } = await sb.from('boloes').delete().eq('id', s.b.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
@@ -2164,6 +2198,10 @@ async function estadoAlertas() {
 }
 function b64paraBytes(s) { const p = '='.repeat((4 - (s.length % 4)) % 4); const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); }
 async function ativarAlertas() {
+  if (Notification.permission !== 'granted') {
+    const ok = await confirmar('Ligar os alertas do Deixa Comigo? Você vai saber na hora quando alguém pagar ou quando uma cobrança vencer. Logo depois, o celular vai pedir sua permissão: é só tocar em "Permitir".', { ok: 'Continuar', cancelar: 'Agora não', perigo: false });
+    if (!ok) throw new Error('cancelado');
+  }
   const perm = await Notification.requestPermission();
   if (perm !== 'granted') throw new Error('permissao');
   const { data: chave } = await sb.rpc('vapid_publica');
@@ -2201,7 +2239,7 @@ async function montarAlertas() {
     try {
       if (b.dataset.alerta === 'ligar') { await ativarAlertas(); toast('Alertas ligados!'); }
       else { await desativarAlertas(); toast('Alertas desligados neste aparelho.'); }
-    } catch (err) { toast(err.message === 'permissao' ? 'Você não permitiu as notificações.' : 'Não consegui ligar os alertas agora.', 'erro'); }
+    } catch (err) { if (err.message !== 'cancelado') toast(err.message === 'permissao' ? 'Você não permitiu as notificações.' : 'Não consegui ligar os alertas agora.', 'erro'); }
     montarAlertas();
   };
 }
@@ -2305,12 +2343,12 @@ async function telaAgenda() {
     else if (a === 'c-editar') { editando = itens.find((i) => i.ref === b.dataset.ref) || null; desenhar(); window.scrollTo(0, 0); }
     else if (a === 'c-cancelar') { editando = null; desenhar(); }
     else if (a === 'c-feito' || a === 'c-apagar') {
-      if (a === 'c-apagar' && !window.confirm('Apagar este compromisso?')) return;
+      if (a === 'c-apagar' && !await confirmar('Apagar este compromisso?')) return;
       const { error } = a === 'c-feito' ? await sb.from('compromissos').update({ feito: true }).eq('id', editando.ref) : await sb.from('compromissos').delete().eq('id', editando.ref);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       editando = null; await carregar(); desenhar();
     } else if (a === 'ics-criar' || a === 'ics-trocar') {
-      if (a === 'ics-trocar' && !window.confirm('Trocar o link? O link antigo para de funcionar e você precisa adicionar o novo no Google Agenda.')) return;
+      if (a === 'ics-trocar' && !await confirmar('Trocar o link? O link antigo para de funcionar e você precisa adicionar o novo no Google Agenda.')) return;
       const novo = Array.from(crypto.getRandomValues(new Uint8Array(32)), (x) => x.toString(16).padStart(2, '0')).join('');
       const { error } = link ? await sb.from('agenda_links').update({ token: novo }).eq('user_id', estado.sessao.user.id) : await sb.from('agenda_links').insert({ token: novo });
       if (error) { toast(traduzErro(error), 'erro'); return; }
@@ -2395,7 +2433,7 @@ async function telaContatos() {
       if (error) { toast(/duplicate|unique/i.test(error.message) ? 'Já existe um contato com esse WhatsApp.' : traduzErro(error), 'erro'); return; }
       toast(c ? 'Contato atualizado.' : 'Contato salvo.'); await carregarContatos(); desenhar();
     } else if (b.dataset.acao === 'ct-apagar') {
-      if (!window.confirm(`Apagar ${c.nome} dos seus contatos? As cobranças com essa pessoa continuam.`)) return;
+      if (!await confirmar(`Apagar ${c.nome} dos seus contatos? As cobranças com essa pessoa continuam.`)) return;
       const { error } = await sb.from('contatos').delete().eq('id', c.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       await carregarContatos(); desenhar();
@@ -2691,7 +2729,7 @@ function telaConta() {
     <p class="muted pequeno" style="text-align: center">Deixa Comigo · versão 1</p>
   `, { ativo: 'conta' }));
   $('#apagar-conta').addEventListener('click', async () => {
-    const conf = window.prompt('Isso apaga sua conta e TUDO que você criou (combinados, cobranças, cartelas, vendas). Os links que você mandou param de funcionar. Não dá para desfazer.\n\nPara confirmar, digite APAGAR:');
+    const conf = await perguntar('Isso apaga sua conta e TUDO que você criou (combinados, cobranças, cartelas, vendas). Os links que você mandou param de funcionar. Não dá para desfazer.\n\nPara confirmar, digite APAGAR:', '', { titulo: 'Apagar sua conta?', ok: 'Apagar conta' });
     if (!conf || conf.trim().toUpperCase() !== 'APAGAR') { toast('Nada foi apagado.'); return; }
     const { error } = await sb.functions.invoke('apagar-conta', { method: 'POST' });
     if (error) { toast('Não consegui apagar agora. Tente de novo ou use "Reportar problema".', 'erro'); return; }
@@ -3028,6 +3066,148 @@ async function telaRelatorio(mes) {
     registrar('relatorio_baixado');
   });
   const imp = $('#imprimir'); if (imp) imp.addEventListener('click', () => window.print());
+}
+
+// ---------- cofrinho: transparência para quem participa ----------
+function novoToken() {
+  const a = new Uint8Array(16); crypto.getRandomValues(a);
+  return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+function linkCofre(token) { return `${location.origin}/app/#/cofre/${token}`; }
+function mensagemCofre(titulo, link, plano) {
+  const msg = `Para ficar tudo transparente: aqui dá para acompanhar quanto o cofrinho de "${titulo}" já arrecadou e quanto falta. ${link}`;
+  return !plano || plano === 'gratis' ? `${msg}\n\nenviado por dx cmg · Deixa Comigo` : msg;
+}
+function cofreFormHTML() {
+  return `<div class="card pilha-p">
+    <span style="font-weight: 700">Cofrinho transparente</span>
+    <label class="check"><input type="checkbox" id="cofre" checked> Criar um link para todo mundo acompanhar quanto já foi arrecadado, quanto falta e a meta</label>
+    <label class="check" style="margin-left: 32px"><input type="checkbox" id="cofre-nomes"> Mostrar também o nome de cada um e quanto já pagou</label>
+    <span class="ajuda">Para ver os valores, a pessoa cria uma conta grátis no Deixa Comigo. Dá para mudar isso depois.</span>
+  </div>`;
+}
+function cofreDonoHTML(k) {
+  if (!k.cofre_token) {
+    return k.status === 'encerrado' ? '' : `<div class="card pilha-p">
+      <h2>Cofrinho transparente</h2>
+      <p class="muted">Crie um link para os participantes acompanharem quanto já entrou e quanto falta. Assim ninguém precisa perguntar.</p>
+      <label class="check"><input type="checkbox" id="cofre-nomes-k"> Mostrar o nome de cada um e quanto já pagou</label>
+      <button type="button" class="btn sec peq" data-acao="cofre-ligar" style="align-self: flex-start">Criar link do cofrinho</button>
+    </div>`;
+  }
+  return `<div class="card pilha-p">
+    <div class="linha-flex entre"><h2>Cofrinho transparente</h2><span class="tag pago">Link ativo</span></div>
+    <p class="muted pequeno">Quem tem o link e entra com uma conta grátis vê o total arrecadado, o que falta e a meta${k.cofre_nomes ? ', e também quem pagou quanto' : ''}.</p>
+    <div class="acoes">
+      <button type="button" class="btn peq" data-acao="cofre-whats">Mandar no grupo</button>
+      <button type="button" class="btn sec peq" data-acao="cofre-copiar">Copiar link</button>
+      <a class="btn sec peq" href="#/cofre/${k.cofre_token}">Ver como eles veem</a>
+    </div>
+    <label class="check"><input type="checkbox" data-acao="cofre-nomes" ${k.cofre_nomes ? 'checked' : ''}> Mostrar o nome de cada um e quanto já pagou</label>
+    <button type="button" class="btn texto peq" data-acao="cofre-desligar" style="align-self: flex-start; padding-left: 0">Desligar o link</button>
+  </div>`;
+}
+function itemCofreSeguido(c) {
+  const alvo = Number(c.meta || c.total_cobrado || 0);
+  const pct = alvo ? Math.min(100, Math.round((Number(c.arrecadado) / alvo) * 100)) : 0;
+  return `<li><a class="item" href="#/cofre/${c.token}"><span class="icone lima" style="width:44px;height:44px">${ICONE[c.modelo] || ICONE.vaquinha}</span>
+    <span class="grow"><span class="titulo-item">${esc(c.titulo)}</span>
+    <span class="muted pequeno" style="display:block">de ${esc(c.organizador || '')} · ${brl(c.arrecadado)}${alvo ? ` de ${brl(alvo)}` : ' arrecadados'}</span>
+    ${alvo ? `<span class="barra" aria-hidden="true"><span style="width: ${pct}%"></span></span>` : ''}</span></a></li>`;
+}
+
+// Instalar o app na tela inicial
+let pedidoInstalar = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pedidoInstalar = e; });
+function instalarHTML() {
+  if (instaladoNaTela()) return '';
+  if (ehIphone()) return '<div class="card pilha-p"><h2>Tenha o app no celular</h2><p class="muted">Toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>. Assim você abre o cofrinho com um toque.</p></div>';
+  return `<div class="card pilha-p"><h2>Tenha o app no celular</h2><p class="muted">Abra o cofrinho com um toque, sem procurar o link.</p>${pedidoInstalar ? '<button type="button" class="btn sec" id="instalar">Instalar o Deixa Comigo</button>' : '<p class="muted pequeno">No Chrome, toque nos três pontinhos e em <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>.</p>'}</div>`;
+}
+function ligarInstalar() {
+  const b = app.querySelector('#instalar');
+  if (b) b.addEventListener('click', async () => { if (!pedidoInstalar) return; pedidoInstalar.prompt(); const r = await pedidoInstalar.userChoice; registrar('app_instalar', { resultado: r && r.outcome }); pedidoInstalar = null; b.remove(); });
+}
+
+async function telaCofre(token) {
+  render(casca('<p class="carregando">Abrindo o cofrinho…</p>', { nav: !!estado.sessao && !!(estado.perfil && estado.perfil.chave_pix) }));
+  if (!estado.sessao) {
+    const { data: pv } = await sb.rpc('cofre_previa', { p_token: token });
+    registrar('cofre_previa', { achou: !!pv });
+    if (!pv) { render(casca('<div class="card pilha"><h1>Link não encontrado</h1><p class="muted">Este cofrinho foi desligado ou o link está incompleto. Peça um link novo para quem organiza.</p></div>', { nav: false })); return; }
+    try { sessionStorage.setItem('dxcmg_depois', `/cofre/${token}`); } catch (e) { /* sem armazenamento */ }
+    render(casca(`
+      <div class="pilha-p" style="padding-top: 8px">
+        <p class="muted">${esc(pv.organizador || 'Alguém')} te convidou para acompanhar o cofrinho de</p>
+        <h1>${esc(pv.titulo)}</h1>
+        <p class="muted">${pv.pessoas} ${pv.pessoas === 1 ? 'pessoa participa' : 'pessoas participam'}</p>
+      </div>
+      <div class="card escuro pilha-p">
+        <h2>Veja quanto já entrou e quanto falta</h2>
+        <p class="muted">Crie sua conta grátis em menos de um minuto para acompanhar o cofrinho sempre que quiser, sem precisar perguntar para ninguém.</p>
+        <a class="btn lima bloco" href="#/cadastro">Criar conta grátis</a>
+        <a class="btn texto bloco" href="#/entrar" style="color: var(--branco)">Já tenho conta</a>
+      </div>
+      <p class="muted pequeno">No Deixa Comigo, o Pix vai direto para quem organiza. O app não recebe nem guarda dinheiro.</p>`, { nav: false }));
+    return;
+  }
+  const { data: c, error } = await sb.rpc('cofre_ver', { p_token: token });
+  if (error) throw error;
+  if (!c) { render(casca('<div class="card pilha"><h1>Link não encontrado</h1><p class="muted">Este cofrinho foi desligado ou o link está incompleto.</p><a class="btn" href="#/">Ir para o início</a></div>')); return; }
+  registrar('cofre_visto', { dono: c.sou_dono });
+  const meta = Number(c.meta || 0);
+  const arrec = Number(c.arrecadado || 0);
+  const cobrado = Number(c.total_cobrado || 0);
+  const alvo = meta || cobrado;
+  const falta = Math.max(0, alvo - arrec);
+  const pct = alvo ? Math.min(100, Math.round((arrec / alvo) * 100)) : 0;
+  const ca = c.ciclo_atual;
+  const recorrente = c.regra === 'recorrente' && !c.parcelas;
+  const temPerfil = !!(estado.perfil && estado.perfil.chave_pix);
+  render(casca(`
+    <div class="pilha-p">
+      <span class="tag neutra" style="align-self: flex-start">Cofrinho de ${esc(c.organizador || '')}</span>
+      <h1>${esc(c.titulo)}</h1>
+      ${c.sou_dono ? '<p class="aviso">Você organiza este cofrinho. É assim que os participantes veem.</p>' : ''}
+    </div>
+    <div class="card escuro pilha-p">
+      <p class="muted pequeno">Já arrecadado</p>
+      <p class="numero" style="color: var(--lima)">${brl(arrec)}</p>
+      ${alvo ? `<div class="ocupacao" aria-hidden="true"><span style="width: ${pct}%"></span></div><p class="pequeno">${pct}% ${meta ? 'da meta' : 'do que já foi cobrado'}</p>` : ''}
+    </div>
+    <div class="resumo">
+      <div class="card"><p class="muted pequeno">${meta ? 'Meta' : 'Total cobrado até agora'}</p><p class="numero">${brl(alvo)}</p></div>
+      <div class="card"><p class="muted pequeno">Falta</p><p class="numero">${brl(falta)}</p></div>
+    </div>
+    ${recorrente && ca ? `<div class="card pilha-p"><h2>Cobrança atual</h2><p class="muted pequeno">${esc(ca.titulo || '')}${ca.vencimento ? ` · vence ${dataBR(ca.vencimento)}` : ''}</p>
+      <div class="linha-flex entre"><span>${brl(ca.pago)} de ${brl(ca.total)}</span><strong>${ca.total ? Math.round((ca.pago / ca.total) * 100) : 0}%</strong></div>
+      <div class="barra" aria-hidden="true"><span style="width: ${ca.total ? Math.min(100, Math.round((ca.pago / ca.total) * 100)) : 0}%"></span></div></div>` : ''}
+    <p class="muted pequeno">${c.pessoas} ${c.pessoas === 1 ? 'pessoa participa' : 'pessoas participam'}. Os valores mudam quando ${esc(c.organizador || 'quem organiza')} confirma cada pagamento.</p>
+    ${c.mostrar_nomes && c.lista ? `<section class="pilha-p" aria-labelledby="t-quem"><h2 id="t-quem">Quem já pagou</h2><ul class="lista">${c.lista.map((p) => {
+      const ok = Number(p.devido) > 0 && Number(p.pago) >= Number(p.devido);
+      return `<li class="item"><span class="grow"><span class="titulo-item">${esc(p.nome)}</span><span class="muted pequeno" style="display:block">${brl(p.pago)}${Number(p.devido) ? ` de ${brl(p.devido)}` : ''}</span></span><span class="tag ${ok ? 'pago' : Number(p.pago) > 0 ? 'avisou_pago' : 'pendente'}">${ok ? 'Em dia' : Number(p.pago) > 0 ? 'Parcial' : 'Pendente'}</span></li>`;
+    }).join('')}</ul></section>` : ''}
+    ${instalarHTML()}
+    ${c.sou_dono ? '' : `<div class="card pilha-p" style="border: 2px solid var(--ink)"><h2>Também organiza alguma coisa?</h2><p class="muted">Vaquinha, carona, viagem, mensalidade do grupo: combine antes e deixe o app cobrar na data, com Pix.</p><a class="btn" href="#/nova">${temPerfil ? 'Criar um combinado' : 'Criar meu primeiro combinado'}</a></div>`}
+  `, { nav: temPerfil, voltar: temPerfil ? '' : '' }));
+  ligarInstalar();
+}
+
+async function telaCofres() {
+  render(casca('<p class="carregando">Carregando…</p>', { nav: !!(estado.perfil && estado.perfil.chave_pix) }));
+  const { data, error } = await sb.rpc('meus_cofres');
+  if (error) throw error;
+  const temPerfil = !!(estado.perfil && estado.perfil.chave_pix);
+  render(casca(`
+    <h1>Cofrinhos que você acompanha</h1>
+    ${data && data.length ? `<ul class="lista">${data.map(itemCofreSeguido).join('')}</ul>` : '<div class="card vazio"><p>Quando alguém te mandar o link de um cofrinho, ele aparece aqui.</p></div>'}
+    ${instalarHTML()}
+    <div class="card pilha-p" style="border: 2px solid var(--ink)"><h2>Também organiza alguma coisa?</h2><p class="muted">Vaquinha, carona, viagem, mensalidade do grupo: combine antes e deixe o app cobrar na data, com Pix.</p><a class="btn" href="#/nova">${temPerfil ? 'Criar um combinado' : 'Criar meu primeiro combinado'}</a></div>
+    ${temPerfil ? '' : '<button type="button" class="btn texto" id="sair-cofres">Sair da conta</button>'}
+  `, { nav: temPerfil }));
+  ligarInstalar();
+  const s2 = app.querySelector('#sair-cofres');
+  if (s2) s2.addEventListener('click', async () => { await sb.auth.signOut(); go('/entrar'); });
 }
 
 // ---------- início ----------
