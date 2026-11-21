@@ -54,7 +54,7 @@ function extrato(d, c) {
   if (Number(c.valor_pago) > 0) linhas.push(['Já pago', brl(c.valor_pago)]);
   if (!linhas.length) return '';
   return `<div class="calc">${linhas.map(([a, b]) => `<div class="lin"><span>${esc(a)}</span><span style="text-align:right">${esc(b)}</span></div>`).join('')}
-    <div class="lin total"><span>Sua parte</span><span>${brl(d)}</span></div></div>`;
+    <div class="lin total"><span>${(c.detalhes || {}).categoria === 'aluno' ? 'Mensalidade' : 'Sua parte'}</span><span>${brl(d)}</span></div></div>`;
 }
 
 async function iniciar() {
@@ -92,7 +92,7 @@ async function iniciar() {
       ${c.vencimento ? `<p class="muted">Até ${dataBR(c.vencimento)}</p>` : ''}
     </div>
     ${c.combinado ? `<div class="card pilha-p" style="border-color: var(--ink)">
-      <p><strong>Conforme combinado.</strong> ${c.aceito_em ? `Você topou em ${new Date(c.aceito_em).toLocaleDateString('pt-BR')}.` : 'Esta é uma cobrança do combinado do grupo.'}</p>
+      <p><strong>Conforme combinado.</strong> ${c.aceito_em ? `Você topou em ${new Date(c.aceito_em).toLocaleDateString('pt-BR')}.` : ((c.detalhes || {}).categoria === 'aluno' ? 'Esta é a sua mensalidade.' : 'Esta é uma cobrança do combinado do grupo.')}</p>
       ${Number(c.pessoas) > 1 ? `<p class="muted pequeno">${c.pagos} de ${c.pessoas} pessoas já pagaram${c.tipo === 'vaquinha' ? ` · ${brl(c.arrecadado)} de ${brl(c.total)} arrecadados` : ''}.</p>
       <div class="barra" aria-hidden="true"><span style="width: ${Math.round((Number(c.pagos) / Number(c.pessoas)) * 100)}%"></span></div>` : ''}
     </div>` : ''}
