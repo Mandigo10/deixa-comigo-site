@@ -2,7 +2,7 @@
 import { sb } from '../js/sb.js';
 import { registrar } from '../js/eventos.js';
 import { esc, brl, parseValor, round2, soDigitos, dataBR, hojeISO, linkWhatsApp, toast, copiar, NOMES_TIPO, primeiroNome, ativarMascaras, formatarTelefone, formatarChave, valorPorExtenso } from '../js/util.js';
-import { nomePlano, LIBERADO_ATE } from '../js/planos.js';
+import { nomePlano, LIBERADO_ATE, calcularPlano, LIMITES_GRATIS, TURBINADA, BENEFICIOS_PLUS, PLANOS } from '../js/planos.js';
 import { confirmar, perguntar, avisar } from '../js/dialogo.js';
 import { gerarMensagem, gerarConvite, gerarDivulgacao, TONS, avisoReajuste, textoRecibo } from '../js/mensagens.js';
 import { normalizarChave, validarChave } from '../js/pix.js';
@@ -92,6 +92,8 @@ function traduzErro(e) {
   if (/Password should be at least/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
   if (/rate limit|too many/i.test(m)) return 'Muitas tentativas seguidas. Espere um pouco e tente de novo.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão. Confira sua internet e tente de novo.';
+  const lim = m.match(/limite_[a-z_]+/);
+  if (lim) { setTimeout(() => oferecerPlus(lim[0]), 0); return TEXTO_LIMITE[lim[0]] || 'Você chegou no limite do plano Grátis.'; }
   return 'Não deu certo agora. Tente de novo em instantes.';
 }
 async function carregarContatos() {
@@ -129,8 +131,93 @@ function trocaChaveHTML(tabela, id, atual) {
 async function carregarPerfil() {
   const { data } = await sb.from('perfis').select('*').eq('id', estado.sessao.user.id).maybeSingle();
   estado.perfil = data || null;
+  if (estado.perfil) {
+    const pl = calcularPlano(estado.perfil);
+    estado.perfil.plano_real = estado.perfil.plano;
+    estado.perfil.plano = pl.plano; // plano que vale agora (inclui os 15 dias de Plus)
+    estado.perfil.em_teste = pl.emTeste;
+  }
   estado.perfilCarregado = true;
 }
+
+// ---------- planos: limites e convites ----------
+const TEXTO_LIMITE = {
+  limite_combinados: `No Grátis, até ${LIMITES_GRATIS.combinados} combinados ativos ao mesmo tempo.`,
+  limite_vendas: `No Grátis, até ${LIMITES_GRATIS.vendas} clientes com carnê ativo.`,
+  limite_alunos: `Até ${LIMITES_GRATIS.alunos} alunos fora do plano Profissional.`,
+  limite_cartelas: 'No Grátis, 1 cartela aberta por vez.',
+  limite_numeros: `No Grátis, cartelas de até ${LIMITES_GRATIS.numerosCartela} números.`,
+  limite_boloes: 'No Grátis, 1 bolão aberto por vez.',
+  limite_chaves: 'Várias chaves Pix é recurso do Plus.',
+  limite_cofre_nomes: 'Mostrar quem pagou no cofrinho é recurso do Plus.'
+};
+const OFERTAS = {
+  limite_combinados: ['Sua organização cresceu!', `Você já tem ${LIMITES_GRATIS.combinados} combinados ativos, o máximo do Grátis. Encerre um que já acabou ou passe para o Plus e organize quantos quiser.`],
+  limite_vendas: ['Suas vendas cresceram!', `Você já tem ${LIMITES_GRATIS.vendas} clientes com carnê ativo. No Plus, clientes sem limite e cada parcela cobrada no dia certo.`],
+  limite_alunos: ['Sua turma cresceu!', `Você já tem ${LIMITES_GRATIS.alunos} alunos. No plano Profissional, alunos ilimitados, reajuste anual, recibo e relatório do mês.`],
+  limite_boloes: ['Mais de um bolão ao mesmo tempo?', 'No Grátis, 1 bolão aberto por vez. No Plus, quantos quiser, com conferência automática do resultado.'],
+  limite_chaves: ['Receber em mais de um banco', 'No Plus, você cadastra várias chaves Pix e escolhe em qual cada pessoa paga.'],
+  limite_lista: ['Listas sem limite', 'No Grátis, até 10 pessoas por lista. No Plus, o churrasco, a pelada e a viagem cabem todo mundo.'],
+  limite_cofre_nomes: ['Mostrar quem já pagou', 'No Plus, o cofrinho mostra o nome de cada um e quanto já pagou. Ninguém precisa perguntar, e quem atrasou percebe sozinho.']
+};
+function janelaPlano(html) {
+  const fundo = document.createElement('div');
+  fundo.className = 'inst-fundo';
+  fundo.innerHTML = `<div class="inst" role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(fundo);
+  const fechar = () => fundo.remove();
+  fundo.addEventListener('click', (e) => { if (e.target === fundo || e.target.closest('[data-fechar]')) fechar(); });
+  return { fundo, fechar };
+}
+function querPlano(plano, motivo, fechar) {
+  registrar('quero_plano', { plano, motivo });
+  fechar();
+  toast(plano.startsWith('turbinada') ? 'Anotado! Assim que a Cartela Turbinada abrir, você é avisado primeiro.' : `Anotado! Assim que o ${nomePlano(plano)} abrir, você é avisado primeiro.`);
+}
+function oferecerPlus(motivo, ctx = {}) {
+  prepararEstiloInstalar();
+  registrar('oferta_vista', { motivo });
+  const ok = '<span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></span>';
+  if (motivo === 'limite_numeros' || motivo === 'limite_cartelas') {
+    const v = Number(ctx.valor) || 10;
+    const linha = (n) => `até ${brl(n * v)}`;
+    const { fundo, fechar } = janelaPlano(`
+      <h2>Arrecade mais com a sua cartela</h2>
+      <p style="margin:0;color:#57536A">${motivo === 'limite_cartelas' ? 'No Grátis, 1 cartela aberta por vez.' : `No Grátis, até ${LIMITES_GRATIS.numerosCartela} números: com números de ${brl(v)}, ${linha(LIMITES_GRATIS.numerosCartela)}.`}</p>
+      <div class="pilha-p" style="gap:10px">
+        ${TURBINADA.map((t) => `<button type="button" class="op-plano" data-plano="${t.id}"><span><strong>Cartela Turbinada · ${t.numeros} números</strong><small>Pague uma vez, no Pix · arrecade ${linha(t.numeros)}</small></span><b>${brl(t.preco)}</b></button>`).join('')}
+        <button type="button" class="op-plano destaque" data-plano="plus"><span><strong>Plus · tudo liberado</strong><small>Cartelas ilimitadas de até 1.000 números e muito mais</small></span><b>${brl(PLANOS.plus.preco)}/mês</b></button>
+      </div>
+      <p style="margin:0;color:#57536A;font-size:.85rem">Os pagamentos abrem em breve. Escolha uma opção e você é avisado primeiro.</p>
+      <div class="inst-acoes"><button type="button" class="nao" data-fechar>Agora não</button></div>`);
+    fundo.querySelectorAll('[data-plano]').forEach((b) => b.addEventListener('click', () => querPlano(b.dataset.plano, motivo, fechar)));
+    return;
+  }
+  const [titulo, texto] = OFERTAS[motivo] || ['Conheça o Plus', 'Tudo sem limite, sem a marca nas mensagens e com recursos que poupam seu tempo.'];
+  const plano = motivo === 'limite_alunos' ? 'autonomo' : 'plus';
+  const { fundo, fechar } = janelaPlano(`
+    <div class="inst-cab"><img src="/app/icone-192.png" alt=""><div><h2>${esc(titulo)}</h2><p>${plano === 'plus' ? `Plus · ${brl(PLANOS.plus.preco)}/mês` : 'Plano Profissional'}</p></div></div>
+    <p style="margin:0;color:#4A4659">${esc(texto)}</p>
+    ${plano === 'plus' ? `<ul>${BENEFICIOS_PLUS.map((b) => `<li>${ok}<span>${esc(b)}</span></li>`).join('')}</ul>
+      <p style="margin:0;color:#57536A;font-size:.85rem">Uma única cobrança esquecida de R$ 50 paga 5 meses de Plus.</p>` : ''}
+    <div class="inst-acoes"><button type="button" class="nao" data-fechar>Agora não</button><button type="button" class="sim" data-plano="${plano}">Quero o ${plano === 'plus' ? 'Plus' : 'Profissional'}</button></div>`);
+  fundo.querySelector('[data-plano]').addEventListener('click', () => querPlano(plano, motivo, fechar));
+}
+function avisoPlanoHTML() {
+  const p = estado.perfil; if (!p) return '';
+  const pl = calcularPlano({ ...p, plano: p.plano_real || p.plano });
+  if (pl.lancamento && (p.plano_real || p.plano) === 'gratis') {
+    return `<div class="aviso" style="background: var(--lima); border-color: var(--ink)">🎁 <strong>Lançamento:</strong> tudo liberado até ${dataBR(LIBERADO_ATE)}. Depois, você ainda ganha ${15} dias de Plus.</div>`;
+  }
+  if (p.em_teste && pl.testeAte) {
+    const dias = Math.max(1, Math.ceil((pl.testeAte - new Date()) / 864e5));
+    return dias <= 3
+      ? `<div class="card escuro pilha-p"><strong>Seu Plus grátis acaba em ${dias} ${dias === 1 ? 'dia' : 'dias'}</strong><span class="muted pequeno">Depois: até ${LIMITES_GRATIS.combinados} combinados ativos, marca nas mensagens, cofrinho só com totais e uma chave Pix.</span><button type="button" class="btn lima peq" data-oferta="plus" style="align-self:flex-start">Quero continuar no Plus</button></div>`
+      : `<div class="aviso">✨ Você está no <strong>Plus grátis</strong> até ${pl.testeAte.toLocaleDateString('pt-BR')} (${dias} dias).</div>`;
+  }
+  return '';
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-oferta]'); if (b) oferecerPlus(b.dataset.oferta); });
 
 // ---------- rotas ----------
 const ROTAS = [
@@ -482,6 +569,7 @@ async function telaPainel() {
       ${tarefas.map((t) => `<li><a class="item" href="${t.href}"><span class="grow">${t.txt}<span class="muted pequeno" style="display:block">${esc(t.titulo)}</span></span><span class="tag ${t.tag === 'Confirmar' ? 'avisou_pago' : t.tag === 'Convidar' ? 'neutra' : 'pendente'}">${t.tag}</span></a></li>`).join('')}
     </ul></section>` : ''}
     ${alunos.length ? `<a class="item card" href="#/alunos" style="text-decoration: none; color: inherit"><span class="icone roxo">${ICONE.aluno}</span><span class="grow"><span class="titulo-item">Alunos e clientes</span><span class="muted pequeno" style="display:block">${alunos.length} ${alunos.length === 1 ? 'ativo' : 'ativos'} · ${brl(alunos.filter((k) => k.status === 'ativo').reduce((t, k) => t + (k.combinado_membros || []).filter((m) => m.ativo).reduce((u, m) => u + Number(m.valor || k.valor_por_pessoa), 0), 0))} por mês</span></span><span class="tag neutra">Ver</span></a>` : ''}
+    ${avisoPlanoHTML()}
     ${seguidos && seguidos.length ? `<section class="pilha-p" aria-labelledby="t-seg"><h2 id="t-seg">Cofrinhos que você acompanha</h2><ul class="lista">${seguidos.map(itemCofreSeguido).join('')}</ul></section>` : ''}
     <section class="pilha-p" aria-labelledby="t-comb">
       <div class="linha-flex entre"><h2 id="t-comb">Combinados</h2><a class="btn peq" href="#/nova">${ICONE.mais}Novo</a></div>
@@ -627,7 +715,7 @@ function telaFormCombinado(modelo) {
       <div class="card pilha-p">
         <label class="check"><input type="checkbox" id="aberta" ${modelo !== 'viagem' ? 'checked' : ''}> ${modelo === 'carona' ? 'Oferecer vagas por link (cada um garante a sua)' : 'Lista aberta por link (cada um coloca o nome)'}</label>
         <div id="bloco-aberta" class="pilha">
-          <div class="campo"><label for="vagas">${modelo === 'carona' ? 'Vagas no carro (sem contar você)' : 'Limite de pessoas'}</label><input id="vagas" inputmode="numeric" value="${modelo === 'carona' ? 4 : 10}">${estado.perfil.plano === 'gratis' ? '<span class="ajuda">No plano grátis, até 10 pessoas por lista.</span>' : ''}</div>
+          <div class="campo"><label for="vagas">${modelo === 'carona' ? 'Vagas no carro (sem contar você)' : 'Limite de pessoas'}</label><input id="vagas" inputmode="numeric" value="${modelo === 'carona' ? 4 : 10}">${estado.perfil.plano === 'gratis' ? '<span class="ajuda">No plano Grátis, até 10 pessoas por lista. <button type="button" class="btn texto peq" data-oferta="limite_lista" style="padding:0;min-height:0">Quero listas maiores</button></span>' : ''}</div>
           ${modelo === 'carona' ? '<label class="check"><input type="checkbox" id="dividir" checked> Dividir o custo do carro entre quem entrar (o preço cai a cada pessoa)</label><span class="ajuda" id="dividir-ajuda"></span>' : ''}
           ${modelo === 'vaquinha' ? '<span class="ajuda" id="vaq-ajuda"></span>' : ''}
         </div>
@@ -698,7 +786,7 @@ function telaFormCombinado(modelo) {
     if (aberta) {
       let vagas = Math.round(parseValor($('#vagas').value));
       if (!(vagas >= 1)) vagas = modelo === 'carona' ? 4 : 10;
-      k.vagas = Math.min(vagas, estado.perfil.plano === 'gratis' ? 10 : 60);
+      k.vagas = Math.min(vagas, estado.perfil.plano === 'gratis' ? LIMITES_GRATIS.pessoasLista : 60);
       if (modelo === 'carona' && $('#dividir') && $('#dividir').checked) {
         const base = (f.calc && f.calc.custo_total) || (f.calcExterno && f.calcExterno.custo_total);
         if (base) {
@@ -1501,15 +1589,16 @@ function telaFormVenda() {
 }
 
 // ---------- cartelas de números ou nomes ----------
+function limitesValem() { return estado.perfil.plano === 'gratis' && !calcularPlano(estado.perfil).lancamento; }
 function telaFormCartela() {
-  const gratis = estado.perfil.plano === 'gratis';
+  const gratis = limitesValem();
   render(casca(`
     <div class="pilha-p"><h1>Nova cartela de números</h1><p class="muted">A grade do papel, no celular. Cada pessoa escolhe pelo link e paga com Pix, e você também pode lançar o que vendeu no papel.</p></div>
     <form id="f" class="pilha" novalidate>
       <div class="card pilha">
         <div class="campo"><label for="titulo">Nome da cartela</label><input id="titulo" maxlength="60" placeholder="Ex.: Chá de fraldas da Ana"></div>
         <div class="campo"><label for="descricao">Para que é (opcional)</label><input id="descricao" maxlength="200" placeholder="Ex.: ajudar com o enxoval"></div>
-        <div class="campo" id="bloco-qtd"><label for="qtd">Quantos números</label><input id="qtd" inputmode="numeric" value="50"><span class="ajuda">${gratis ? 'De 2 a 100 no plano grátis.' : 'De 2 a 200.'}</span></div>
+        <div class="campo" id="bloco-qtd"><label for="qtd">Quantos números</label><input id="qtd" inputmode="numeric" value="50"><span class="ajuda">${gratis ? `De 2 a ${LIMITES_GRATIS.numerosCartela} no plano Grátis. <button type="button" class="btn texto peq" data-oferta="limite_numeros" style="padding:0;min-height:0">Quero mais números</button>` : 'De 2 a 1.000 números (até 200 nomes).'}</span></div>
       </div>
       <div class="card pilha">
         <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">Valor</span>
@@ -1553,8 +1642,9 @@ function telaFormCartela() {
     const msg = $('#msg'); msg.textContent = '';
     const r = ler();
     const titulo = $('#titulo').value.trim();
-    const limite = gratis ? 100 : 200;
+    const limite = r.modo === 'nomes' ? 200 : gratis ? LIMITES_GRATIS.numerosCartela : 1000;
     if (!titulo) { msg.textContent = 'Dê um nome para a cartela.'; return; }
+    if (gratis && r.modo !== 'nomes' && r.quantidade > limite) { msg.textContent = `No Grátis, até ${limite} números.`; oferecerPlus('limite_numeros', { valor: r.valor }); return; }
     if (!(r.quantidade >= 2 && r.quantidade <= limite)) { msg.textContent = `A cartela precisa ter de 2 a ${limite} ${r.modo === 'nomes' ? 'nomes' : 'números'}.`; return; }
     if (!(r.valor > 0)) { msg.textContent = 'Informe o valor.'; return; }
     const btn = $('#f button[type=submit]'); btn.disabled = true;
@@ -2726,8 +2816,8 @@ function telaConta() {
       <a class="btn sec" href="#/perfil" style="margin-top: 8px">${estado.chaves.length ? 'Editar meus dados e chaves' : 'Editar dados ou adicionar outra chave Pix'}</a>
     </div>
     <div class="card destaque pilha-p">
-      <div class="linha-flex entre"><h2>Plano ${nomePlano(p.plano)}</h2><span class="tag neutra">Atual</span></div>
-      <p class="muted">${p.plano === 'gratis' ? `Suas mensagens saem com "enviado por dx cmg". Os planos pagos chegam em breve; até ${dataBR(LIBERADO_ATE)}, agenda, alertas, conferência do bolão e os recursos do Profissional estão liberados para todos.` : 'Obrigado por apoiar o Deixa Comigo!'}</p>
+      <div class="linha-flex entre"><h2>Plano ${nomePlano(p.plano)}${p.em_teste ? ' (grátis por 15 dias)' : ''}</h2><span class="tag neutra">Atual</span></div>
+      <p class="muted">${p.em_teste ? `Seu teste do Plus vai até ${new Date(p.plus_teste_ate).toLocaleDateString('pt-BR')}. ` : ''}${p.plano === 'gratis' ? `Suas mensagens saem com "enviado por dx cmg". Os planos pagos chegam em breve; até ${dataBR(LIBERADO_ATE)}, agenda, alertas, conferência do bolão e os recursos do Profissional estão liberados para todos.` : 'Obrigado por apoiar o Deixa Comigo!'}</p>
       ${p.plano === 'gratis' ? '<a class="btn sec peq" href="/profissionais/#plano-aut" style="align-self: flex-start">Ver planos: Plus e Profissional</a>' : ''}
     </div>
     <div class="card pilha-p">
@@ -3157,6 +3247,10 @@ function sugerirInstalar({ forcar = false } = {}) {
   if (!forcar && adiado()) return;
   const iphone = ehIphone();
   if (!pedidoInstalar && !iphone && !forcar) return;
+  prepararEstiloInstalar();
+  montarJanelaInstalar(iphone);
+}
+function prepararEstiloInstalar() {
   if (!document.getElementById('inst-estilo')) {
     const st = document.createElement('style'); st.id = 'inst-estilo';
     st.textContent = `.inst-fundo{position:fixed;inset:0;background:rgba(22,20,31,.55);z-index:1000;display:flex;align-items:flex-end;justify-content:center;animation:instE .2s ease-out}
@@ -3170,9 +3264,14 @@ function sugerirInstalar({ forcar = false } = {}) {
     .inst li .ok{flex:0 0 22px;height:22px;border-radius:50%;background:#C8F135;display:flex;align-items:center;justify-content:center}
     .inst .inst-acoes{display:flex;gap:10px}.inst button{min-height:52px;border-radius:16px;border:0;font:inherit;font-weight:700;font-size:1rem;cursor:pointer;flex:1}
     .inst .sim{background:#4B2FE0;color:#fff}.inst .nao{background:#F4F2FB;color:#16141F}
-    @keyframes instE{from{opacity:0}}@keyframes instS{from{transform:translateY(40px)}}`;
+    @keyframes instE{from{opacity:0}}@keyframes instS{from{transform:translateY(40px)}}
+    .op-plano{display:flex;justify-content:space-between;align-items:center;gap:12px;text-align:left;min-height:64px;padding:12px 16px;border:2px solid #D8D4E6!important;background:#fff!important;border-radius:16px;font:inherit;cursor:pointer;color:#16141F}
+    .op-plano span{display:flex;flex-direction:column;gap:2px}.op-plano small{color:#57536A;font-weight:500}.op-plano b{white-space:nowrap}
+    .op-plano.destaque{border-color:#16141F!important;background:#C8F135!important}`;
     document.head.appendChild(st);
   }
+}
+function montarJanelaInstalar(iphone) {
   const ok = '<span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></span>';
   const corpo = pedidoInstalar ? `<ul>
       <li>${ok}<span>Abre com um toque, direto da tela inicial</span></li>

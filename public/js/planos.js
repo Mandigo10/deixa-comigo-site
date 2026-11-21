@@ -51,3 +51,31 @@ export function ligarPeriodos(container, inicial = 'anual') {
   botoes.forEach((b) => b.addEventListener('click', () => escolher(b.dataset.periodo)));
   escolher(inicial);
 }
+
+// Limites do Grátis (valem a partir de 01/02/2027; o banco é quem garante, via trigger checar_limites)
+export const LIMITES_GRATIS = { combinados: 3, pessoasLista: 10, vendas: 3, alunos: 3, cartelas: 1, numerosCartela: 50, boloes: 1 };
+export const FIM_LANCAMENTO = '2027-02-01T00:00:00-03:00';
+export const DIAS_TESTE = 15;
+
+// Cartela Turbinada: compra avulsa, paga uma vez (ainda sem pagamento: registra interesse)
+export const TURBINADA = [
+  { id: 'turbinada200', numeros: 200, preco: 19.90 },
+  { id: 'turbinada1000', numeros: 1000, preco: 29.90 }
+];
+
+export const BENEFICIOS_PLUS = [
+  'Combinados, listas, carnês e bolões sem limite',
+  'Cartelas de até 1.000 números',
+  'Mensagens sem o "enviado por dx cmg"',
+  'Cofrinho mostrando quem já pagou',
+  'Receber em várias chaves Pix',
+  'Google Agenda, lembretes no celular e conferência do bolão'
+];
+
+// Plano que vale agora, a partir do perfil (igual à função plano_efetivo do banco)
+export function calcularPlano(perfil, agora = new Date()) {
+  if (!perfil) return { plano: 'gratis', emTeste: false, testeAte: null, lancamento: agora < new Date(FIM_LANCAMENTO) };
+  const ate = perfil.plus_teste_ate ? new Date(perfil.plus_teste_ate) : null;
+  const emTeste = perfil.plano === 'gratis' && !!ate && ate > agora && (ate - DIAS_TESTE * 864e5) <= agora;
+  return { plano: perfil.plano !== 'gratis' ? perfil.plano : emTeste ? 'plus' : 'gratis', emTeste, testeAte: ate, lancamento: agora < new Date(FIM_LANCAMENTO) };
+}
