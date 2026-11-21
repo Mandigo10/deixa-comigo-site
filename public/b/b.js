@@ -1,5 +1,6 @@
 // Bolão público: entrar (?t=) e ver a própria cota, os jogos e o resultado (?c=).
 import { sb } from '../js/sb.js';
+import { carregarVitrinePublica } from '../js/vitrine.js';
 import { registrar } from '../js/eventos.js';
 import { esc, brl, dataBR, primeiroNome, soDigitos, toast, copiar, ativarMascaras, formatarTelefone } from '../js/util.js';
 import { gerarPix } from '../js/pix.js';
@@ -51,6 +52,7 @@ async function entrada() {
       <div class="pilha-p">
         <p class="muted">${esc(b.organizador)} está organizando:</p>
         <h1>${esc(b.titulo)}</h1>
+      <div class="vitrine-slot" data-vitrine="bolao"></div>
         <p class="muted">${esc(textoConcurso(b))}${b.descricao ? ` · ${esc(b.descricao)}` : ''}</p>
       </div>
       <div class="card escuro pilha-p">
@@ -166,6 +168,7 @@ async function minhaCota(jaBuscou = false) {
     <div class="pilha-p">
       <p class="muted">Oi, ${esc(primeiroNome(eu.nome))}! Bolão de ${esc(d.organizador)}:</p>
       <h1>${esc(d.titulo)}</h1>
+      <div class="vitrine-slot" data-vitrine="cota"></div>
       <p class="muted">${esc(textoConcurso(d))}</p>
       <p id="proximo" class="pequeno" hidden></p>
     </div>
@@ -287,3 +290,15 @@ function montarPalpites(sec, pal, d, jogos) {
 }
 
 if (tCota) minhaCota(); else entrada();
+
+// fotos da vitrine: recarrega sempre que a página é redesenhada
+const fotosVitrine = {};
+new MutationObserver(() => {
+  document.querySelectorAll('.vitrine-slot:not([data-ok])').forEach((el) => {
+    el.dataset.ok = '1';
+    const tipo = el.dataset.vitrine;
+    const tk = { grupo: typeof token !== 'undefined' ? token : '', membro: typeof token !== 'undefined' ? token : '', cartela: typeof tCartela !== 'undefined' ? tCartela : '', comprador: typeof tComprador !== 'undefined' ? tComprador : '', bolao: typeof tEntrada !== 'undefined' ? tEntrada : '', cota: typeof tCota !== 'undefined' ? tCota : '' }[tipo];
+    if (fotosVitrine[tipo] !== undefined) { el.innerHTML = fotosVitrine[tipo]; return; }
+    carregarVitrinePublica(el, tipo, tk).then(() => { fotosVitrine[tipo] = el.innerHTML; });
+  });
+}).observe(document.getElementById('app'), { childList: true, subtree: true });

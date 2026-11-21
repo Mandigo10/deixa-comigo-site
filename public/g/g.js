@@ -1,5 +1,6 @@
 // Lista aberta: qualquer pessoa com o link vê as vagas e coloca o nome.
 import { sb } from '../js/sb.js';
+import { carregarVitrinePublica } from '../js/vitrine.js';
 import { registrar } from '../js/eventos.js';
 import { esc, brl, primeiroNome, soDigitos, toast, ativarMascaras } from '../js/util.js';
 import { MODELOS, textoRegra, valorDividido, ocupacaoHTML } from '../js/combinados.js';
@@ -98,6 +99,7 @@ async function iniciar() {
     <div class="pilha-p">
       <p class="muted">${esc(g.organizador)} ${carona ? 'está oferecendo carona' : 'está organizando'}:</p>
       <h1>${esc(g.titulo)}</h1>
+      <div class="vitrine-slot" data-vitrine="grupo"></div>
       <span class="tag neutra" style="align-self: flex-start">${esc(MODELOS[g.modelo] ? MODELOS[g.modelo].nome : 'Combinado')}</span>
     </div>
     <div class="card escuro pilha-p">${precoHTML(g, !meu && g.aberto && !cheio)}</div>
@@ -134,3 +136,15 @@ async function iniciar() {
 
 ativarMascaras(document);
 iniciar();
+
+// fotos da vitrine: recarrega sempre que a página é redesenhada
+const fotosVitrine = {};
+new MutationObserver(() => {
+  document.querySelectorAll('.vitrine-slot:not([data-ok])').forEach((el) => {
+    el.dataset.ok = '1';
+    const tipo = el.dataset.vitrine;
+    const tk = { grupo: typeof token !== 'undefined' ? token : '', membro: typeof token !== 'undefined' ? token : '', cartela: typeof tCartela !== 'undefined' ? tCartela : '', comprador: typeof tComprador !== 'undefined' ? tComprador : '', bolao: typeof tEntrada !== 'undefined' ? tEntrada : '', cota: typeof tCota !== 'undefined' ? tCota : '' }[tipo];
+    if (fotosVitrine[tipo] !== undefined) { el.innerHTML = fotosVitrine[tipo]; return; }
+    carregarVitrinePublica(el, tipo, tk).then(() => { fotosVitrine[tipo] = el.innerHTML; });
+  });
+}).observe(document.getElementById('app'), { childList: true, subtree: true });

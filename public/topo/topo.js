@@ -1,5 +1,6 @@
 // Página do convite: a pessoa vê as regras do combinado e toca em "Topo".
 import { sb } from '../js/sb.js';
+import { carregarVitrinePublica } from '../js/vitrine.js';
 import { registrar } from '../js/eventos.js';
 import { esc, brl, dataBR, toast, primeiroNome, copiar, linkWhatsApp } from '../js/util.js';
 import { MODELOS, textoRegra, ocupacaoHTML, categoriaDe } from '../js/combinados.js';
@@ -77,6 +78,7 @@ async function iniciar() {
     <div class="pilha-p">
       <p class="muted">Oi, ${esc(primeiroNome(k.membro))}! ${categoriaDe(k) === 'venda' ? `${esc(k.organizador)} registrou a sua compra:` : `${esc(k.organizador)} te chamou para um combinado:`}</p>
       <h1>${esc(k.titulo)}</h1>
+      <div class="vitrine-slot" data-vitrine="membro"></div>
       <span class="tag neutra" style="align-self: flex-start">${esc(MODELOS[categoriaDe(k)] ? MODELOS[categoriaDe(k)].nome : 'Combinado')}</span>
     </div>
     <div class="card escuro pilha-p">
@@ -121,3 +123,15 @@ async function iniciar() {
 }
 
 iniciar();
+
+// fotos da vitrine: recarrega sempre que a página é redesenhada
+const fotosVitrine = {};
+new MutationObserver(() => {
+  document.querySelectorAll('.vitrine-slot:not([data-ok])').forEach((el) => {
+    el.dataset.ok = '1';
+    const tipo = el.dataset.vitrine;
+    const tk = { grupo: typeof token !== 'undefined' ? token : '', membro: typeof token !== 'undefined' ? token : '', cartela: typeof tCartela !== 'undefined' ? tCartela : '', comprador: typeof tComprador !== 'undefined' ? tComprador : '', bolao: typeof tEntrada !== 'undefined' ? tEntrada : '', cota: typeof tCota !== 'undefined' ? tCota : '' }[tipo];
+    if (fotosVitrine[tipo] !== undefined) { el.innerHTML = fotosVitrine[tipo]; return; }
+    carregarVitrinePublica(el, tipo, tk).then(() => { fotosVitrine[tipo] = el.innerHTML; });
+  });
+}).observe(document.getElementById('app'), { childList: true, subtree: true });

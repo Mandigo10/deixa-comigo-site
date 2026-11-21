@@ -8,6 +8,7 @@ import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
 import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo, daLoteria, valorCurto } from '../js/boloes.js';
 import { datalistHTML, ligarAutocompletar, editarPessoa, lerArquivoContatos, temAgendaDoCelular, contatosDoCelular } from '../js/contatos.js';
+import { montarVitrineDono } from '../js/vitrine.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
@@ -55,7 +56,11 @@ function casca(conteudo, { nav = true, ativo = '', voltar = '' } = {}) {
     </div></nav>` : '';
   return `<div class="casca"><header class="topo">${topo}</header><main class="pilha">${conteudo}</main></div>${barra}${datalistHTML(estado.contatos)}`;
 }
-function render(html) { app.innerHTML = html; }
+function render(html) {
+  app.innerHTML = html;
+  const v = app.querySelector('#vitrine-dono');
+  if (v && estado.sessao) montarVitrineDono(v, { alvo: v.dataset.alvo, id: v.dataset.id, uid: estado.sessao.user.id });
+}
 function $(sel) { return app.querySelector(sel); }
 function $$(sel) { return Array.from(app.querySelectorAll(sel)); }
 function go(caminho) {
@@ -803,6 +808,7 @@ async function telaCombinado(id) {
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
       ${listaHTML(ms)}
+      <div id="vitrine-dono" data-alvo="combinado" data-id="${k.id}"></div>
       <p class="muted pequeno">${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? 'Quando você fechar a lista, o app calcula o valor final e cria a cobrança de cada um.' : 'O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.'}</p>
       ${k.status === 'ativo' ? `<div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(k.tom, 'tomk')}</div>` : ''}
       <section class="pilha-p" aria-label="Participantes"><h2>Participantes</h2>${ms.map(cartao).join('')}
@@ -1471,6 +1477,7 @@ async function telaCartela(id) {
       </div>
       ${avisaram ? `<div class="aviso">${avisaram} ${avisaram === 1 ? 'item com aviso' : 'itens com aviso'} de "já paguei". Toque nos roxos para conferir e confirmar.</div>` : ''}
       ${aberta ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiar">Copiar link</button></div>` : ''}
+      <div id="vitrine-dono" data-alvo="cartela" data-id="${c.id}"></div>
       <div class="legenda" aria-hidden="true"><span><i></i>Livre</span><span><i style="background: var(--amarelo-claro); border-color:#F1D98A"></i>Não pago</span><span><i style="background: var(--roxo-claro); border-color:#B9AEFF"></i>Avisou</span><span><i style="background: var(--verde-claro); border-color:#A6E3C0"></i>Pago</span></div>
       <div class="grade-n ${c.modo === 'nomes' ? 'nomes-grade' : ''}" role="group" aria-label="Cartela">${celulas}</div>
       <div id="painel-sel">${painelSel()}</div>
@@ -1781,6 +1788,7 @@ async function telaBolao(id) {
       ${avisaram ? `<div class="aviso">${plural(avisaram, 'pessoa avisou', 'pessoas avisaram')} que já pagou. Confira no banco e toque em Confirmar.</div>` : ''}
       ${aberto ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiar">Copiar link</button></div>` : ''}
 
+      <div id="vitrine-dono" data-alvo="bolao" data-id="${b.id}"></div>
       <section class="pilha-p" aria-labelledby="t-pessoas">
         <div class="linha-flex entre"><h2 id="t-pessoas">Quem entrou</h2>${naoPagas > 1 ? `<span class="muted pequeno">${naoPagas} sem pagar</span>` : ''}</div>
         <p class="muted pequeno">Só você vê esta lista. No link, as pessoas veem só quantas entraram.</p>

@@ -1,5 +1,6 @@
 // Cartela pública: escolher números/nomes (?t=) e ver os seus para pagar (?c=).
 import { sb } from '../js/sb.js';
+import { carregarVitrinePublica } from '../js/vitrine.js';
 import { registrar } from '../js/eventos.js';
 import { esc, brl, dataBR, primeiroNome, soDigitos, toast, copiar, ativarMascaras, formatarTelefone } from '../js/util.js';
 import { gerarPix } from '../js/pix.js';
@@ -48,6 +49,7 @@ async function escolher() {
       <div class="pilha-p">
         <p class="muted">${esc(c.organizador)} está organizando:</p>
         <h1>${esc(c.titulo)}</h1>
+      <div class="vitrine-slot" data-vitrine="cartela"></div>
         ${c.descricao ? `<p class="muted">${esc(c.descricao)}</p>` : ''}
       </div>
       <div class="card escuro pilha-p">
@@ -132,6 +134,7 @@ async function meus() {
     <div class="pilha-p">
       <p class="muted">Oi, ${esc(primeiroNome(d.comprador))}! Na cartela de ${esc(d.organizador)}:</p>
       <h1>${esc(d.titulo)}</h1>
+      <div class="vitrine-slot" data-vitrine="comprador"></div>
     </div>
     <div class="card pilha-p">
       <h2>Os seus</h2>
@@ -182,3 +185,15 @@ async function meus() {
 
 ativarMascaras(document);
 if (tComprador) meus(); else escolher();
+
+// fotos da vitrine: recarrega sempre que a página é redesenhada
+const fotosVitrine = {};
+new MutationObserver(() => {
+  document.querySelectorAll('.vitrine-slot:not([data-ok])').forEach((el) => {
+    el.dataset.ok = '1';
+    const tipo = el.dataset.vitrine;
+    const tk = { grupo: typeof token !== 'undefined' ? token : '', membro: typeof token !== 'undefined' ? token : '', cartela: typeof tCartela !== 'undefined' ? tCartela : '', comprador: typeof tComprador !== 'undefined' ? tComprador : '', bolao: typeof tEntrada !== 'undefined' ? tEntrada : '', cota: typeof tCota !== 'undefined' ? tCota : '' }[tipo];
+    if (fotosVitrine[tipo] !== undefined) { el.innerHTML = fotosVitrine[tipo]; return; }
+    carregarVitrinePublica(el, tipo, tk).then(() => { fotosVitrine[tipo] = el.innerHTML; });
+  });
+}).observe(document.getElementById('app'), { childList: true, subtree: true });

@@ -169,3 +169,15 @@ a.item:hover { border-color: var(--ink); color: var(--ink); }
 
 dialog.janela { border: 0; border-radius: 20px; padding: 20px; width: min(420px, calc(100% - 32px)); box-shadow: 0 20px 60px rgba(22,20,31,.25); }
 dialog.janela::backdrop { background: rgba(22,20,31,.45); }
+
+/* vitrine */
+.vitrine { display: flex; flex-direction: column; gap: 6px; }
+.vitrine-trilho { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+.vitrine-trilho figure { margin: 0; flex: 0 0 82%; max-width: 420px; scroll-snap-align: start; }
+.vitrine-trilho figure:only-child { flex-basis: 100%; }
+.vitrine-trilho img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 16px; display: block; background: #ECEAF4; }
+.vitrine-trilho figcaption { font-size: 0.9rem; margin-top: 4px; color: var(--ink-2, #4A4658); }
+.vitrine-dono { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.vit-item { display: flex; flex-direction: column; gap: 4px; }
+.vit-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #ECEAF4; }
+.vit-item input { min-height: 40px; font-size: 0.85rem; }
