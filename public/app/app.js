@@ -13,7 +13,7 @@ import { montarVitrineDono } from '../js/vitrine.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
 const app = document.getElementById('app');
-const estado = { sessao: null, perfil: null, perfilCarregado: false, contatos: [], contatosCarregados: false };
+const estado = { sessao: null, perfil: null, perfilCarregado: false, contatos: [], contatosCarregados: false, chaves: [], chavesCarregadas: false };
 const DIAS_ENTRE_LEMBRETES = 3;
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
@@ -98,6 +98,33 @@ async function carregarContatos() {
   estado.contatos = data || [];
   estado.contatosCarregados = true;
 }
+async function carregarChaves() {
+  const { data } = await sb.from('chaves_pix').select('*').order('criado_em');
+  estado.chaves = data || [];
+  estado.chavesCarregadas = true;
+}
+function rotuloChave(tipo, chave) {
+  const nomes = { telefone: 'celular', cpf: 'CPF', email: 'e-mail', cnpj: 'CNPJ', aleatoria: 'aleatória' };
+  return `${nomes[tipo] || ''} ${formatarChave(tipo, chave)}`.trim();
+}
+// Seletor "receber em qual chave" (só aparece se a pessoa tiver mais de uma chave)
+function opcoesChave(atual) {
+  const p = estado.perfil || {};
+  return `<option value="">Principal · ${esc(rotuloChave(p.tipo_chave, p.chave_pix || ''))}</option>${estado.chaves.map((k) => `<option value="${k.id}" ${k.id === atual ? 'selected' : ''}>${esc(k.apelido)} · ${esc(rotuloChave(k.tipo_chave, k.chave_pix))}</option>`).join('')}`;
+}
+function seletorChave(atual = null) {
+  if (!estado.chaves.length) return '';
+  return `<div class="card pilha-p"><div class="campo"><label for="chave-id">Receber o Pix em qual chave?</label><select id="chave-id">${opcoesChave(atual)}</select></div></div>`;
+}
+function lerChaveId() {
+  const s = app.querySelector('#chave-id');
+  return s && s.value ? s.value : null;
+}
+function trocaChaveHTML(tabela, id, atual) {
+  if (!estado.chaves.length) return '';
+  return `<div class="card pilha-p"><div class="campo"><label for="troca-chave">Pix cai em qual chave</label><select id="troca-chave" data-trocar-chave="${tabela}" data-id="${id}">${opcoesChave(atual)}</select>
+    <span class="ajuda">${tabela === 'combinados' ? 'Vale para as próximas cobranças e para as que estão em aberto.' : 'Os links de pagamento já enviados passam a mostrar a chave nova.'}</span></div></div>`;
+}
 async function carregarPerfil() {
   const { data } = await sb.from('perfis').select('*').eq('id', estado.sessao.user.id).maybeSingle();
   estado.perfil = data || null;
@@ -152,6 +179,7 @@ async function rotear() {
       if (publica) { location.hash = '/'; return; }
       if (!estado.perfilCarregado) await carregarPerfil();
       if (!estado.contatosCarregados) await carregarContatos();
+      if (!estado.chavesCarregadas) await carregarChaves();
       if ((!estado.perfil || !estado.perfil.chave_pix) && !['/perfil', '/nova-senha', '/ajuda'].includes(caminho)) { location.hash = '/perfil'; return; }
     }
     for (const [re, fn] of ROTAS) {
@@ -252,11 +280,23 @@ function telaPerfil() {
       <div class="campo"><label for="nome">Seu nome</label><input id="nome" maxlength="80" value="${esc(p.nome || nomeMeta)}" required></div>
       <div class="campo"><label for="tipo">Tipo de chave Pix</label>
         <select id="tipo">${tipos.map(([v, n]) => `<option value="${v}" ${p.tipo_chave === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
-      <div class="campo"><label for="chave">Chave Pix</label><input id="chave" maxlength="77" value="${esc(formatarChave(p.tipo_chave, p.chave_pix || ''))}" required autocomplete="off"><span class="ajuda" id="ajuda-chave"></span></div>
+      <div class="campo"><label for="chave">${primeiraVez ? 'Chave Pix' : 'Chave Pix principal'}</label><input id="chave" maxlength="77" value="${esc(formatarChave(p.tipo_chave, p.chave_pix || ''))}" required autocomplete="off"><span class="ajuda" id="ajuda-chave"></span></div>
       <div class="campo"><label for="cidade">Sua cidade</label><input id="cidade" maxlength="40" value="${esc(p.cidade && p.cidade !== 'SAO PAULO' ? p.cidade : (p.cidade || ''))}" placeholder="Ex.: Curitiba" required><span class="ajuda">O Pix pede a cidade de quem recebe.</span></div>
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco" type="submit">${primeiraVez ? 'Salvar e começar' : 'Salvar'}</button>
-    </form>`, { nav: !primeiraVez, ativo: 'conta', voltar: primeiraVez ? '' : '/conta' }));
+    </form>
+    ${primeiraVez ? '' : `<section class="card pilha-p" aria-labelledby="t-chaves">
+      <h2 id="t-chaves">Outras chaves Pix</h2>
+      <p class="muted pequeno">Recebe em mais de um banco? Cadastre aqui. Ao criar um aluno, combinado, cobrança, cartela ou bolão, você escolhe em qual chave o Pix cai. Se não escolher, vale a principal.</p>
+      ${estado.chaves.length ? `<ul class="lista">${estado.chaves.map((k) => `<li class="item"><span class="grow"><span class="titulo-item">${esc(k.apelido)}</span><span class="muted pequeno" style="display:block">${esc(rotuloChave(k.tipo_chave, k.chave_pix))}</span></span><button type="button" class="btn texto peq" data-apagar-chave="${k.id}">Apagar</button></li>`).join('')}</ul>` : ''}
+      <form id="f-chave" class="pilha-p" novalidate>
+        <div class="campo"><label for="nk-apelido">Apelido</label><input id="nk-apelido" maxlength="30" placeholder="Ex.: Nubank, Itaú, conta da empresa"></div>
+        <div class="campo"><label for="nk-tipo">Tipo de chave</label><select id="nk-tipo">${tipos.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
+        <div class="campo"><label for="nk-chave">Chave Pix</label><input id="nk-chave" maxlength="77" autocomplete="off"></div>
+        <p id="msg-chave" class="erro" role="alert"></p>
+        <button type="submit" class="btn sec">Adicionar chave</button>
+      </form>
+    </section>`}`, { nav: !primeiraVez, ativo: 'conta', voltar: primeiraVez ? '' : '/conta' }));
   const ajudas = { telefone: 'Com DDD. Ex.: (11) 98765-4321', cpf: 'Só os números do CPF.', email: 'O e-mail cadastrado como chave Pix.', cnpj: 'Só os números do CNPJ.', aleatoria: 'Cole a chave aleatória completa.' };
   const mascaraChave = { telefone: 'tel', cpf: 'cpf', cnpj: 'cnpj' };
   const atualizarAjuda = () => {
@@ -268,6 +308,40 @@ function telaPerfil() {
   };
   $('#tipo').addEventListener('change', atualizarAjuda);
   atualizarAjuda();
+  const fk = $('#f-chave');
+  if (fk) {
+    const mascaraNova = () => {
+      const t = $('#nk-tipo').value; const ch = $('#nk-chave');
+      if (mascaraChave[t]) { ch.dataset.mascara = mascaraChave[t]; ch.inputMode = 'numeric'; ch.value = formatarChave(t, ch.value); }
+      else { delete ch.dataset.mascara; ch.inputMode = t === 'email' ? 'email' : 'text'; }
+      ch.placeholder = ajudas[t];
+    };
+    $('#nk-tipo').addEventListener('change', mascaraNova); mascaraNova();
+    fk.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const apelido = $('#nk-apelido').value.trim(); const tipo = $('#nk-tipo').value; const bruta = $('#nk-chave').value;
+      const msg = $('#msg-chave'); msg.textContent = '';
+      if (!apelido) { msg.textContent = 'Dê um apelido para lembrar qual é (ex.: Nubank).'; return; }
+      if (!validarChave(tipo, bruta)) { msg.textContent = 'Essa chave Pix não parece certa. Confira o tipo e o número.'; return; }
+      const chave = normalizarChave(tipo, bruta);
+      if (chave === estado.perfil.chave_pix || estado.chaves.some((k) => k.chave_pix === chave)) { msg.textContent = 'Essa chave já está cadastrada.'; return; }
+      const { data, error } = await sb.from('chaves_pix').insert({ apelido, tipo_chave: tipo, chave_pix: chave }).select().single();
+      if (error) { msg.textContent = traduzErro(error); return; }
+      estado.chaves.push(data);
+      registrar('chave_extra_criada');
+      toast('Chave adicionada!');
+      telaPerfil();
+    });
+    $$('[data-apagar-chave]').forEach((b) => b.addEventListener('click', async () => {
+      const k = estado.chaves.find((x) => x.id === b.dataset.apagarChave);
+      if (!window.confirm(`Apagar a chave "${k.apelido}"? O que usava essa chave passa a usar a principal.`)) return;
+      const { error } = await sb.from('chaves_pix').delete().eq('id', k.id);
+      if (error) { toast(traduzErro(error), 'erro'); return; }
+      estado.chaves = estado.chaves.filter((x) => x.id !== k.id);
+      toast('Chave apagada.');
+      telaPerfil();
+    }));
+  }
   $('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     const tipo = $('#tipo').value;
@@ -553,6 +627,7 @@ function telaFormCombinado(modelo) {
       </div>
       <div id="resumo" class="calc" aria-live="polite"></div>
       <div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(f.tom)}</div>
+      ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco lima" type="submit">Criar combinado</button>
     </form>`, { voltar: '/nova' }));
@@ -717,6 +792,7 @@ function telaFormCombinado(modelo) {
     k.titulo = titulo;
     const btn = $('#f button[type=submit]');
     btn.disabled = true; btn.textContent = 'Criando…';
+    k.chave_id = lerChaveId();
     const { data: novo, error } = await sb.from('combinados').insert(k).select().single();
     if (error) { btn.disabled = false; btn.textContent = 'Criar combinado'; msg.textContent = traduzErro(error); return; }
     if (pessoas.length) {
@@ -841,6 +917,7 @@ async function telaCombinado(id) {
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
       ${ehAluno ? alunoHTML() : listaHTML(ms)}
+      ${trocaChaveHTML('combinados', k.id, k.chave_id)}
       <div id="vitrine-dono" data-alvo="combinado" data-id="${k.id}"></div>
       <p class="muted pequeno">${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? 'Quando você fechar a lista, o app calcula o valor final e cria a cobrança de cada um.' : 'O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.'}</p>
       ${k.status === 'ativo' ? `<div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(k.tom, 'tomk')}</div>` : ''}
@@ -1052,6 +1129,7 @@ function telaFormulario(tipo) {
         <div class="campo"><label for="venc">Pagar até (opcional)</label><input id="venc" type="date" min="${hojeISO()}"></div>
         <div class="campo"><span style="font-weight: 600; font-size: 0.92rem">Tom da mensagem</span>${tonsHTML(f.tom)}<span class="ajuda">Dá para mudar depois, antes de enviar.</span></div>
       </div>
+      ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco lima" type="submit">Criar cobrança</button>
     </form>`, { voltar: '/nova' }));
@@ -1156,6 +1234,7 @@ function telaFormulario(tipo) {
     const btn = $('#f button[type=submit]');
     btn.disabled = true; btn.textContent = 'Criando…';
     const { data: c, error } = await sb.from('cobrancas').insert({
+      chave_id: lerChaveId(),
       tipo, titulo, descricao, valor_total: valorTotal, vencimento: $('#venc').value || null, tom: f.tom, detalhes
     }).select().single();
     if (error) { btn.disabled = false; btn.textContent = 'Criar cobrança'; msg.textContent = traduzErro(error); return; }
@@ -1241,6 +1320,7 @@ async function telaCobranca(id) {
         <div class="card"><p class="muted pequeno">${c.vencimento ? 'Pagar até' : 'Pagos'}</p><p class="numero">${c.vencimento ? dataBR(c.vencimento) : `${pagos}/${ps.length}`}</p></div>
       </div>
       ${c.status === 'aberta' ? `<div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(c.tom, 'tomc')}</div>` : ''}
+      ${c.status === 'aberta' ? trocaChaveHTML('cobrancas', c.id, c.chave_id) : ''}
       <section class="pilha-p" aria-label="Quem deve"><h2>${c.tipo === 'carona' ? 'Passageiros' : c.tipo === 'racha' ? 'Quem paga' : 'Quem deve'}</h2>
         ${ps.map(cartaoPessoa).join('')}</section>
       <div class="acoes" style="margin-top: 8px">
@@ -1336,6 +1416,7 @@ function telaFormVenda() {
       </div>
       <div id="resumo" class="calc" aria-live="polite"></div>
       <div class="card pilha-p"><span style="font-weight: 600">Tom das mensagens</span>${tonsHTML(f.tom)}</div>
+      ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco lima" type="submit">Registrar venda</button>
     </form>`, { voltar: '/nova' }));
@@ -1368,6 +1449,7 @@ function telaFormVenda() {
     if (!$('#inicio').value) { msg.textContent = 'Escolha a data da primeira parcela.'; return; }
     const btn = $('#f button[type=submit]'); btn.disabled = true; btn.textContent = 'Registrando…';
     const { data: novo, error } = await sb.from('combinados').insert({
+      chave_id: lerChaveId(),
       modelo: 'viagem', titulo: produto, regra: 'recorrente', frequencia: 'mensal', parcelas: r.parcelas,
       valor_por_pessoa: r.valor, inicio: $('#inicio').value, tom: f.tom,
       descricao: $('#descricao').value.trim() || null,
@@ -1408,6 +1490,7 @@ function telaFormCartela() {
       </div>
       <div id="resumo" class="calc" aria-live="polite"></div>
       <p class="aviso">${esc(AVISO_LEGAL)}</p>
+      ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco lima" type="submit">Criar cartela</button>
     </form>`, { voltar: '/nova' }));
@@ -1441,6 +1524,7 @@ function telaFormCartela() {
     if (!(r.valor > 0)) { msg.textContent = 'Informe o valor.'; return; }
     const btn = $('#f button[type=submit]'); btn.disabled = true;
     const { data: nova, error } = await sb.from('cartelas').insert({
+      chave_id: lerChaveId(),
       titulo, descricao: $('#descricao').value.trim() || null, modo: r.modo, quantidade: r.quantidade,
       nomes: r.modo === 'nomes' ? r.nomes : [], valor_modo: r.vmodo, valor: r.valor,
       prazo: $('#prazo').value || null, max_por_pessoa: Math.min(Math.max(r.maxp || 20, 1), r.quantidade)
@@ -1535,6 +1619,7 @@ async function telaCartela(id) {
       </div>
       ${avisaram ? `<div class="aviso">${avisaram} ${avisaram === 1 ? 'item com aviso' : 'itens com aviso'} de "já paguei". Toque nos roxos para conferir e confirmar.</div>` : ''}
       ${aberta ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiar">Copiar link</button></div>` : ''}
+      ${trocaChaveHTML('cartelas', c.id, c.chave_id)}
       <div id="vitrine-dono" data-alvo="cartela" data-id="${c.id}"></div>
       <div class="legenda" aria-hidden="true"><span><i></i>Livre</span><span><i style="background: var(--amarelo-claro); border-color:#F1D98A"></i>Não pago</span><span><i style="background: var(--roxo-claro); border-color:#B9AEFF"></i>Avisou</span><span><i style="background: var(--verde-claro); border-color:#A6E3C0"></i>Pago</span></div>
       <div class="grade-n ${c.modo === 'nomes' ? 'nomes-grade' : ''}" role="group" aria-label="Cartela">${celulas}</div>
@@ -1650,6 +1735,7 @@ function telaFormBolao() {
       </div>
       <div id="resumo" class="calc" aria-live="polite"></div>
       <p class="aviso">${esc(AVISO_BOLAO)}</p>
+      ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button class="btn bloco lima" type="submit">Criar bolão</button>
     </form>`, { voltar: '/nova' }));
@@ -1697,6 +1783,7 @@ function telaFormBolao() {
     if (!(maxp >= 1 && maxp <= 100)) { msg.textContent = 'O máximo por pessoa vai de 1 a 100.'; return; }
     const btn = $('#f button[type=submit]'); btn.disabled = true;
     const { data: novo, error } = await sb.from('boloes').insert({
+      chave_id: lerChaveId(),
       titulo, descricao: $('#descricao').value.trim() || null, loteria: $('#loteria').value, concurso,
       data_sorteio: $('#data').value || null, valor_cota: cota, max_cotas: maxc, max_por_pessoa: maxc ? Math.min(maxp, maxc) : maxp,
       prazo: $('#prazo').value || null, palpites_por_cota: Number($('#ppc').value) || 0
@@ -1846,6 +1933,7 @@ async function telaBolao(id) {
       ${avisaram ? `<div class="aviso">${plural(avisaram, 'pessoa avisou', 'pessoas avisaram')} que já pagou. Confira no banco e toque em Confirmar.</div>` : ''}
       ${aberto ? `<div class="acoes"><button type="button" class="btn peq" data-acao="divulgar">Mandar no grupo do WhatsApp</button><button type="button" class="btn sec peq" data-acao="copiar">Copiar link</button></div>` : ''}
 
+      ${trocaChaveHTML('boloes', b.id, b.chave_id)}
       <div id="vitrine-dono" data-alvo="bolao" data-id="${b.id}"></div>
       <section class="pilha-p" aria-labelledby="t-pessoas">
         <div class="linha-flex entre"><h2 id="t-pessoas">Quem entrou</h2>${naoPagas > 1 ? `<span class="muted pequeno">${naoPagas} sem pagar</span>` : ''}</div>
@@ -2578,7 +2666,8 @@ function telaConta() {
       <p class="muted pequeno">Nome</p><p><strong>${esc(p.nome)}</strong></p>
       <p class="muted pequeno">Chave Pix (${tipos[p.tipo_chave] || ''})</p><p><strong>${esc(formatarChave(p.tipo_chave, p.chave_pix))}</strong></p>
       <p class="muted pequeno">E-mail de acesso</p><p>${esc(estado.sessao.user.email)}</p>
-      <a class="btn sec" href="#/perfil" style="margin-top: 8px">Editar meus dados</a>
+      ${estado.chaves.length ? `<p class="muted pequeno">Outras chaves</p><p>${estado.chaves.map((k) => esc(k.apelido)).join(', ')}</p>` : ''}
+      <a class="btn sec" href="#/perfil" style="margin-top: 8px">${estado.chaves.length ? 'Editar meus dados e chaves' : 'Editar dados ou adicionar outra chave Pix'}</a>
     </div>
     <div class="card destaque pilha-p">
       <div class="linha-flex entre"><h2>Plano ${nomePlano(p.plano)}</h2><span class="tag neutra">Atual</span></div>
@@ -2744,6 +2833,7 @@ function telaFormAluno() {
     if (!inicio) { msg.textContent = 'Escolha a data da primeira mensalidade.'; return; }
     const botoes = $$('#f button[type=submit]'); botoes.forEach((b) => { b.disabled = true; });
     const { data: novo, error } = await sb.from('combinados').insert({
+      chave_id: lerChaveId(),
       modelo: 'mensalidade', titulo: servico.slice(0, 60), regra: 'recorrente', frequencia: 'mensal',
       valor_por_pessoa: valor, inicio, tom: f.tom, descricao: $('#descricao').value.trim() || null,
       detalhes: { categoria: 'aluno', servico }
@@ -2804,6 +2894,7 @@ async function telaReajuste() {
           <span><span class="titulo-item">${esc(a.membro.nome)}</span><span class="muted pequeno" style="display:block">${r ? `Já tem reajuste agendado: ${brl(r.valor)} a partir de ${dataBR(r.a_partir)}` : `${brl(a.mensal)} → <strong>${brl(c.novo)}</strong> a partir de ${dataBR(c.apartir)}`}</span></span></label></li>`;
       }).join('')}</ul></section>` : '<div class="card vazio"><p>Você ainda não tem alunos ativos. <a href="#/aluno/novo">Cadastre o primeiro</a>.</p></div>'}
       ${escolhidos.length ? `<div class="calc"><div class="lin"><span>Alunos reajustados</span><span>${escolhidos.length}</span></div><div class="lin total"><span>A mais por mês</span><span>+ ${brl(ganho)}</span></div></div>` : ''}
+      ${seletorChave()}
       <p id="msg" class="erro" role="alert"></p>
       <button type="button" class="btn lima bloco" id="aplicar" ${escolhidos.length ? '' : 'disabled'}>Agendar reajuste de ${escolhidos.length} ${escolhidos.length === 1 ? 'aluno' : 'alunos'}</button>`, { voltar: '/alunos' }));
     $$('[data-pct]').forEach((b) => b.addEventListener('click', () => { st.pct = Number(b.dataset.pct); desenhar(); }));
@@ -2941,6 +3032,16 @@ async function telaRelatorio(mes) {
 
 // ---------- início ----------
 ativarMascaras(document);
+app.addEventListener('change', async (e) => {
+  const s = e.target.closest('[data-trocar-chave]');
+  if (!s) return;
+  const tabela = s.dataset.trocarChave; const chave_id = s.value || null;
+  const { error } = await sb.from(tabela).update({ chave_id }).eq('id', s.dataset.id);
+  if (error) { toast(traduzErro(error), 'erro'); return; }
+  if (tabela === 'combinados') await sb.from('cobrancas').update({ chave_id }).eq('combinado_id', s.dataset.id).eq('status', 'aberta');
+  toast('Chave Pix trocada.');
+  registrar('chave_trocada', { tabela });
+});
 ligarAutocompletar(document, () => estado.contatos);
 (async function iniciar() {
   const { data } = await sb.auth.getSession();
@@ -2950,7 +3051,7 @@ ligarAutocompletar(document, () => estado.contatos);
   sb.auth.onAuthStateChange((evento, sessao) => {
     const antes = !!estado.sessao;
     estado.sessao = sessao;
-    if (evento === 'SIGNED_OUT') { estado.perfil = null; estado.perfilCarregado = false; }
+    if (evento === 'SIGNED_OUT') { estado.perfil = null; estado.perfilCarregado = false; estado.chaves = []; estado.chavesCarregadas = false; }
     if (evento === 'PASSWORD_RECOVERY') { location.hash = '/nova-senha'; return; }
     if (antes !== !!sessao) setTimeout(rotear, 0);
   });

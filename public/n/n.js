@@ -118,7 +118,7 @@ async function escolher() {
 // ---------- meus números + Pix ----------
 async function meus() {
   if (invalido(tComprador)) { app.innerHTML = casca('<div class="card pilha"><h1>Link inválido</h1></div>'); return; }
-  const { data: d, error } = await sb.rpc('comprador_cartela', { p_token: tComprador });
+  const { data: d, error } = await sb.rpc('comprador_cartela_v2', { p_token: tComprador });
   if (error || !d || !d.itens) { app.innerHTML = casca('<div class="card pilha"><h1>Nada encontrado</h1><p class="muted">Seus números podem ter sido liberados. Fale com quem organizou.</p></div>'); return; }
   document.title = `${d.titulo} · Deixa Comigo`;
   const cart = { modo: d.modo, nomes: d.nomes, quantidade: Math.max(...d.itens.map((i) => i.n)) };

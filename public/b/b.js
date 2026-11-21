@@ -134,7 +134,7 @@ async function entrada() {
 async function minhaCota(jaBuscou = false) {
   if (invalido(tCota)) { app.innerHTML = casca('<div class="card pilha"><h1>Link inválido</h1></div>'); return; }
   const [{ data: d, error }, { data: pal }] = await Promise.all([
-    sb.rpc('cota_bolao', { p_token: tCota }),
+    sb.rpc('cota_bolao_v2', { p_token: tCota }),
     sb.rpc('palpites_cota', { p_token: tCota })
   ]);
   if (error || !d) { app.innerHTML = casca('<div class="card pilha"><h1>Nada encontrado</h1><p class="muted">Sua cota pode ter sido removida. Fale com quem organizou.</p></div>'); return; }

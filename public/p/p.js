@@ -62,7 +62,7 @@ async function iniciar() {
     app.innerHTML = casca('<div class="card pilha"><h1>Link inválido</h1><p class="muted">Confira se o link foi copiado inteiro, ou peça um novo para quem te cobrou.</p></div>');
     return;
   }
-  const { data: c, error } = await sb.rpc('cobranca_publica_v2', { p_token: token });
+  const { data: c, error } = await sb.rpc('cobranca_publica_v3', { p_token: token });
   if (error || !c) {
     app.innerHTML = casca('<div class="card pilha"><h1>Cobrança não encontrada</h1><p class="muted">Ela pode ter sido cancelada. Fale com quem te enviou o link.</p></div>');
     return;
