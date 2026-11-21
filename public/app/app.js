@@ -58,6 +58,7 @@ function casca(conteudo, { nav = true, ativo = '', voltar = '' } = {}) {
 }
 function render(html) {
   app.innerHTML = html;
+  if (app.querySelector('#alertas-card')) montarAlertas();
   const v = app.querySelector('#vitrine-dono');
   if (v && estado.sessao) montarVitrineDono(v, { alvo: v.dataset.alvo, id: v.dataset.id, uid: estado.sessao.user.id });
 }
@@ -2006,6 +2007,61 @@ async function telaBolao(id) {
   desenhar();
 }
 
+// ---------- alertas no celular ----------
+const temPush = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const ehIphone = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const instaladoNaTela = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+async function estadoAlertas() {
+  if (!temPush()) return 'sem-suporte';
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) return 'ativo';
+  return Notification.permission === 'denied' ? 'bloqueado' : 'desligado';
+}
+function b64paraBytes(s) { const p = '='.repeat((4 - (s.length % 4)) % 4); const b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); }
+async function ativarAlertas() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('permissao');
+  const { data: chave } = await sb.rpc('vapid_publica');
+  if (!chave) throw new Error('chave');
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64paraBytes(chave) });
+  const j = sub.toJSON();
+  const { error } = await sb.from('push_inscricoes').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: 'endpoint' });
+  if (error) throw error;
+  registrar('alertas_ativados', {});
+}
+async function desativarAlertas() {
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  if (sub) { await sb.from('push_inscricoes').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+}
+// Cartão reutilizável: coloca em qualquer tela um <div id="alertas-card"></div>
+async function montarAlertas() {
+  const el = app.querySelector('#alertas-card');
+  if (!el) return;
+  const st = await estadoAlertas();
+  const txt = {
+    ativo: '<p><strong>Alertas ligados neste aparelho.</strong> Você recebe um aviso quando alguém avisa que pagou, entra no bolão ou confirma um combinado, e às 9h quando algo vence hoje ou amanhã.</p><button type="button" class="btn texto peq" data-alerta="desligar" style="align-self:flex-start; padding-left:0">Desligar neste aparelho</button>',
+    desligado: '<p class="muted">Receba um aviso no celular quando alguém avisar que pagou e quando uma cobrança estiver vencendo.</p><button type="button" class="btn" data-alerta="ligar" style="align-self:flex-start">Ativar alertas no celular</button>',
+    bloqueado: '<p class="muted">Os alertas estão bloqueados no navegador. Libere as notificações deste site nas configurações do navegador e volte aqui.</p>',
+    'sem-suporte': ehIphone() && !instaladoNaTela()
+      ? '<p class="muted">No iPhone, os alertas só funcionam com o app na tela inicial: toque em <strong>Compartilhar</strong> e em <strong>Adicionar à Tela de Início</strong>, abra o app por lá e volte aqui.</p>'
+      : '<p class="muted">Este navegador não recebe alertas. No Android, use o Chrome.</p>'
+  }[st];
+  el.innerHTML = `<section class="card pilha-p" aria-labelledby="t-alertas"><h2 id="t-alertas">Alertas no celular</h2>${txt}</section>`;
+  el.onclick = async (e) => {
+    const b = e.target.closest('[data-alerta]');
+    if (!b) return;
+    b.disabled = true;
+    try {
+      if (b.dataset.alerta === 'ligar') { await ativarAlertas(); toast('Alertas ligados!'); }
+      else { await desativarAlertas(); toast('Alertas desligados neste aparelho.'); }
+    } catch (err) { toast(err.message === 'permissao' ? 'Você não permitiu as notificações.' : 'Não consegui ligar os alertas agora.', 'erro'); }
+    montarAlertas();
+  };
+}
+
 // ---------- agenda ----------
 const ICS_BASE = `${window.DXCMG_CONFIG.SUPABASE_URL}/functions/v1/agenda-ics?t=`;
 function somaDiasISO(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
@@ -2070,6 +2126,7 @@ async function telaAgenda() {
           const corpo = `<span class="icone" aria-hidden="true" style="font-size:1.2rem">${icone[i.tipo]}</span><span class="grow"><span class="titulo-item">${i.hora ? `${String(i.hora).slice(0, 5)} · ` : ''}${esc(i.titulo)}</span>${i.detalhe ? `<span class="muted pequeno" style="display:block">${esc(i.detalhe)}${k === 'atrasado' ? ` · venceu ${dataBR(i.data)}` : ''}</span>` : ''}</span>${i.valor ? `<strong>${brl(i.valor)}</strong>` : ''}`;
           return `<li>${i.tipo === 'compromisso' ? `<button type="button" class="item" data-acao="c-editar" data-ref="${i.ref}" style="width:100%; text-align:left; background:none; border:0; font:inherit; cursor:pointer">${corpo}</button>` : `<a class="item" href="${hrefDe(i)}">${corpo}</a>`}</li>`;
         }).join('')}</ul></section>`).join('') : '<div class="card vazio"><p class="muted">Nada nos próximos dias. Crie um compromisso ou uma cobrança com data.</p></div>'}
+      <div id="alertas-card"></div>
       <section class="card pilha-p" aria-labelledby="t-google">
         <h2 id="t-google">Ver na Agenda do Google</h2>
         <p class="muted pequeno">Seus compromissos e vencimentos aparecem sozinhos na Agenda do Google (ou do iPhone). O Google atualiza de tempos em tempos, então mudanças podem levar algumas horas para aparecer lá.</p>
@@ -2472,6 +2529,7 @@ function telaConta() {
       <p class="muted">${p.plano === 'gratis' ? 'Suas mensagens saem com "enviado por dx cmg". O Plus, sem marca e com lembretes ilimitados, chega em breve.' : 'Obrigado por apoiar o Deixa Comigo!'}</p>
     </div>
     <div class="card pilha-p">
+      <div id="alertas-card"></div>
       <a class="btn sec" href="#/agenda">Agenda</a>
       <a class="btn sec" href="#/contatos">Meus contatos</a>
       <a class="btn sec" href="#/ajuda">Reportar problema ou dar ideia</a>

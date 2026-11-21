@@ -68,7 +68,13 @@ O dono quer que o dinheiro pago fique retido (nem o organizador mexe) e só seja
 - A conferir antes: se o provedor aceita bolão/loteria, se exige CNPJ da plataforma, tarifas, prazo máximo de retenção, como devolver. Comparar com o Mercado Pago.
 - Comparação feita em 20/11/2026: na documentação pública, o Mercado Pago **não** oferece retenção com liberação sob comando do app. Tem Split 1:1 via OAuth (dinheiro cai na conta do vendedor, plataforma pode cobrar comissão), `money_release_date` (pending/released, prazo definido pelo próprio Mercado Pago) e retenção só em disputas. Modelo 1:N e ajustes de data de liberação só via time comercial ("carteira assessorada"). Conclusão: Mercado Pago serve para **confirmar pagamento automático**; para **dinheiro reservado**, Asaas (Conta Escrow) ou negociar com o comercial do Mercado Pago.
 
-## Ideias do plano pago (pedido do dono em 20/11/2026, ainda não feito)
+## Feito em 20/11/2026 (recursos do plano pago, liberados para todos até 31/01/2027 junto com a conferência do bolão)
+- **Agenda** (`#/agenda`): tabela `compromissos` + RPC `minha_agenda_v2` (junta compromissos, cobranças em aberto por vencimento, sorteios de bolão e prazos de cartela via `agenda_itens`).
+- **Link do Google Agenda**: tabela `agenda_links` (token 64 hex) + edge function `agenda-ics` (GET `?t=`), o usuário assina "Do URL" no Google Agenda.
+- **Alertas (Web Push)**: tabela `push_inscricoes`; edge function `notificar` (gera as chaves VAPID sozinha na 1ª vez e guarda em `privado.config`, que só o servidor lê via `config_interna()`; exige header `x-segredo`); gatilhos `gatilho_alertas` (avisou que pagou, entrou no bolão, confirmou combinado) chamam `avisar_dono` via pg_net; pg_cron `lembretes-diarios` às 12h UTC chama `disparar_lembretes()` → `lembretes_do_dia()`. Cartão `#alertas-card` (Agenda e Conta), push e clique tratados em `app/sw.js`.
+- Nunca exibir no chat as chaves de `privado.config`.
+
+## Ideias do plano pago (pedido do dono em 20/11/2026; itens 1, 2 e 4 já feitos, ver acima)
 1. **Agenda no app** (tela com vencimentos, compromissos e valores a receber por dia/semana). Sem Google: tudo no nosso banco.
 2. **Ver na Agenda do Google sem login do Google:** gerar um link privado de calendário (.ics, um por usuário, com token) que a pessoa assina no Google Agenda. Só leitura, e o Google atualiza sozinho de tempos em tempos (pode levar horas). Evita a verificação do Google para o escopo de agenda.
 3. **Integração completa com o Google Agenda (criar e editar eventos lá):** precisa de projeto no Google Cloud, tela de consentimento e verificação do Google (escopo sensível) — deixar para depois.
