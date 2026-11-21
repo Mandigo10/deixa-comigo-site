@@ -1,16 +1,25 @@
 {
+  "id": "/app/",
   "name": "Deixa Comigo",
   "short_name": "Deixa Comigo",
-  "description": "Cobre carona, empréstimo e racha sem climão.",
+  "description": "Combine antes e deixe o app cobrar na data, com Pix: vaquinha, carona, viagem, mensalidade do grupo e de alunos. Sem climão.",
   "lang": "pt-BR",
+  "dir": "ltr",
   "start_url": "/app/",
   "scope": "/app/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#F4F2FB",
   "theme_color": "#16141F",
+  "categories": ["finance", "productivity", "lifestyle"],
   "icons": [
     { "src": "/app/icone-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/app/icone-512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "/app/icone-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "/app/tela-inicio.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "O que você tem a receber e o que fazer hoje" },
+    { "src": "/app/tela-cofrinho.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Cofrinho transparente: todos veem quanto já entrou" },
+    { "src": "/app/tela-alunos.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Mensalidade dos alunos no automático" }
   ]
 }

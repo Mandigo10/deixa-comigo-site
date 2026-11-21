@@ -181,3 +181,139 @@ export async function contatosDoGoogle() {
   }
   return saida;
 }
+
+// ---------- escolher contato nos formulários ----------
+// Em todo campo de nome com list="dl-contatos": botão de agenda dentro do campo (abre a lista com busca)
+// e sugestões enquanto digita. Ao escolher, preenche nome e WhatsApp; o usuário só confere e salva.
+let estiloSeletor = false;
+function prepararEstiloSeletor() {
+  if (estiloSeletor) return;
+  estiloSeletor = true;
+  const s = document.createElement('style');
+  s.textContent = `
+  .com-contato { position: relative; display: block; }
+  .com-contato > input { padding-right: 52px; width: 100%; box-sizing: border-box; }
+  .bt-contatos { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 44px; height: 40px; border: 0; border-radius: 10px; background: #F4F2FB; color: #4B2FE0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .bt-contatos:hover { background: #DCD6FF; }
+  .sugestoes { position: absolute; left: 0; min-width: min(280px, 85vw); right: 0; top: calc(100% + 4px); background: #fff; border: 2px solid #16141F; border-radius: 14px; margin: 0; padding: 4px; list-style: none; z-index: 50; max-height: 260px; overflow: auto; box-shadow: 0 12px 30px rgba(22,20,31,.15); }
+  .sugestoes button, .sel-lista button { width: 100%; text-align: left; background: none; border: 0; border-radius: 10px; padding: 10px 12px; font: inherit; color: #16141F; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 48px; justify-content: center; }
+  .sugestoes button:hover, .sugestoes button:focus, .sel-lista button:hover, .sel-lista button:focus { background: #F4F2FB; outline: none; }
+  .sugestoes small, .sel-lista small { color: #57536A; }
+  .sel-fundo { position: fixed; inset: 0; background: rgba(22,20,31,.55); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+  @media (min-width: 600px) { .sel-fundo { align-items: center; } }
+  .sel { background: #fff; width: 100%; max-width: 480px; max-height: 85vh; border-radius: 24px 24px 0 0; padding: 20px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; font-family: Inter, system-ui, sans-serif; }
+  @media (min-width: 600px) { .sel { border-radius: 24px; } }
+  .sel h2 { margin: 0; font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 1.3rem; }
+  .sel input[type=search] { min-height: 48px; border-radius: 14px; border: 2px solid #D8D4E6; padding: 0 14px; font: inherit; font-size: 1rem; }
+  .sel-lista { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1 1 auto; min-height: 120px; }
+  .sel-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .sel-fechar { border: 0; background: #F4F2FB; border-radius: 10px; min-height: 40px; padding: 0 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  .sel-celular { min-height: 48px; border-radius: 14px; border: 2px solid #16141F; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  .preenchido { animation: preenchido 1.2s ease-out; }
+  @keyframes preenchido { from { background: #E9FBC2; } to { background: #fff; } }`;
+  document.head.appendChild(s);
+}
+const ICONE_AGENDA = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="15" height="18" rx="2"/><circle cx="11.5" cy="10" r="2.6"/><path d="M7.5 17a4 4 0 0 1 8 0"/><path d="M19 7h2M19 12h2M19 17h2"/></svg>';
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+function filtrar(lista, termo, max) {
+  const b = semAcento(termo).trim(); const d = soDigitos(termo);
+  if (!b && !d) return lista.slice(0, max);
+  return lista.filter((c) => semAcento(c.nome).includes(b) || (d.length >= 3 && String(c.telefone).includes(d))).slice(0, max);
+}
+function campoTelefoneDe(raiz, el) {
+  if (el.dataset.contatoTel) return (el.closest('dialog, form, .dlg, main') || raiz).querySelector(el.dataset.contatoTel) || raiz.querySelector(el.dataset.contatoTel);
+  if (el.dataset.lista && el.dataset.k === 'nome') return raiz.querySelector(`[data-lista="${el.dataset.lista}"][data-i="${el.dataset.i}"][data-k="telefone"]`);
+  return null;
+}
+function preencher(raiz, el, c) {
+  el.value = c.nome;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  el.classList.remove('preenchido'); void el.offsetWidth; el.classList.add('preenchido');
+  const t = campoTelefoneDe(raiz, el);
+  if (t && c.telefone) {
+    t.value = formatarTelefone(c.telefone);
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+    t.dispatchEvent(new Event('change', { bubbles: true }));
+    t.classList.remove('preenchido'); void t.offsetWidth; t.classList.add('preenchido');
+  }
+}
+function abrirLista(contatos, { doCelular } = {}) {
+  prepararEstiloSeletor();
+  return new Promise((resolver) => {
+    const fundo = document.createElement('div');
+    fundo.className = 'sel-fundo';
+    fundo.innerHTML = `<div class="sel" role="dialog" aria-modal="true" aria-labelledby="sel-t">
+      <div class="sel-topo"><h2 id="sel-t">Escolher contato</h2><button type="button" class="sel-fechar">Fechar</button></div>
+      <input type="search" placeholder="Buscar por nome ou número" aria-label="Buscar contato" autocomplete="off">
+      ${doCelular ? '<button type="button" class="sel-celular">Abrir a agenda do celular</button>' : ''}
+      <ul class="sel-lista" role="listbox"></ul>
+    </div>`;
+    (document.querySelector('dialog[open]') || document.body).appendChild(fundo);
+    const busca = fundo.querySelector('input'); const ul = fundo.querySelector('.sel-lista');
+    const fechar = (v) => { fundo.remove(); document.removeEventListener('keydown', esc2); resolver(v); };
+    const esc2 = (e) => { if (e.key === 'Escape') fechar(null); };
+    document.addEventListener('keydown', esc2);
+    const desenhar = () => {
+      const fs = filtrar(contatos, busca.value, 300);
+      ul.innerHTML = fs.length ? fs.map((c, i) => `<li><button type="button" data-i="${i}"><strong>${esc(c.nome)}</strong><small>${esc(formatarTelefone(c.telefone))}</small></button></li>`).join('')
+        : `<li class="muted" style="padding: 12px">${contatos.length ? 'Ninguém com esse nome.' : 'Você ainda não tem contatos salvos. Importe em Conta → Meus contatos.'}</li>`;
+      ul.querySelectorAll('button[data-i]').forEach((b) => b.addEventListener('click', () => fechar(fs[Number(b.dataset.i)])));
+    };
+    busca.addEventListener('input', desenhar);
+    fundo.querySelector('.sel-fechar').addEventListener('click', () => fechar(null));
+    fundo.addEventListener('click', (e) => { if (e.target === fundo) fechar(null); });
+    const bc = fundo.querySelector('.sel-celular');
+    if (bc) bc.addEventListener('click', async () => {
+      try {
+        const r = await navigator.contacts.select(['name', 'tel'], { multiple: false });
+        const c = r && r[0];
+        if (c) fechar({ nome: ((c.name || [])[0] || '').trim().slice(0, 80), telefone: melhorTelefone(c.tel), daAgenda: true });
+      } catch (e) { /* cancelou */ }
+    });
+    desenhar();
+    if (window.matchMedia('(min-width: 600px)').matches) busca.focus();
+  });
+}
+export function ligarSeletorContatos(raiz, contatos, { aoImportar } = {}) {
+  prepararEstiloSeletor();
+  const decorar = () => {
+    raiz.querySelectorAll('input[list="dl-contatos"]').forEach((el) => {
+      if (el.dataset.seletor) return;
+      el.dataset.seletor = '1';
+      el.removeAttribute('list');
+      el.setAttribute('autocomplete', 'off');
+      const envolve = document.createElement('span');
+      envolve.className = 'com-contato';
+      el.parentNode.insertBefore(envolve, el);
+      envolve.appendChild(el);
+      const bt = document.createElement('button');
+      bt.type = 'button'; bt.className = 'bt-contatos'; bt.innerHTML = ICONE_AGENDA;
+      bt.setAttribute('aria-label', 'Escolher dos meus contatos');
+      envolve.appendChild(bt);
+      let ul = null;
+      const fecharSug = () => { if (ul) { ul.remove(); ul = null; } };
+      bt.addEventListener('click', async () => {
+        fecharSug();
+        const c = await abrirLista(contatos(), { doCelular: 'contacts' in navigator && 'ContactsManager' in window });
+        if (!c || !c.nome) return;
+        preencher(raiz, el, c);
+        if (c.daAgenda && aoImportar) aoImportar(c);
+      });
+      el.addEventListener('input', () => {
+        fecharSug();
+        if (document.activeElement !== el || el.value.trim().length < 2) return;
+        const fs = filtrar(contatos(), el.value, 6).filter((c) => semAcento(c.nome) !== semAcento(el.value));
+        if (!fs.length) return;
+        ul = document.createElement('ul'); ul.className = 'sugestoes'; ul.setAttribute('role', 'listbox');
+        ul.innerHTML = fs.map((c, i) => `<li><button type="button" data-i="${i}"><strong>${esc(c.nome)}</strong><small>${esc(formatarTelefone(c.telefone))}</small></button></li>`).join('');
+        ul.querySelectorAll('button').forEach((b) => b.addEventListener('mousedown', (e) => { e.preventDefault(); preencher(raiz, el, fs[Number(b.dataset.i)]); fecharSug(); }));
+        envolve.appendChild(ul);
+      });
+      el.addEventListener('blur', () => setTimeout(fecharSug, 150));
+      el.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharSug(); });
+    });
+  };
+  decorar();
+  new MutationObserver(decorar).observe(raiz, { childList: true, subtree: true });
+}

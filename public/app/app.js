@@ -9,7 +9,7 @@ import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
 import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo, daLoteria, valorCurto } from '../js/boloes.js';
-import { datalistHTML, ligarAutocompletar, editarPessoa, lerArquivoContatos, temAgendaDoCelular, contatosDoCelular, googleClientId, prepararGoogle, contatosDoGoogle } from '../js/contatos.js';
+import { datalistHTML, ligarAutocompletar, editarPessoa, lerArquivoContatos, temAgendaDoCelular, contatosDoCelular, googleClientId, prepararGoogle, contatosDoGoogle, ligarSeletorContatos } from '../js/contatos.js';
 import { montarVitrineDono } from '../js/vitrine.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
@@ -506,6 +506,7 @@ async function telaPainel() {
       <ul class="lista">${abertas.map(itemCobranca).join('')}</ul></section>` : ''}
     ${concluidas.length ? `<details class="pilha-p"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Concluídas (${concluidas.length})</summary><ul class="lista">${concluidas.map(itemCobranca).join('')}</ul></details>` : ''}
   `, { ativo: 'inicio' }));
+  setTimeout(() => { if (location.hash === '#/' || location.hash === '') sugerirInstalar(); }, 2500);
 }
 
 // ---------- nova cobrança ----------
@@ -2736,6 +2737,7 @@ function telaConta() {
     </div>
     <div class="card pilha-p">
       <div id="alertas-card"></div>
+      ${instaladoNaTela() ? '' : '<button type="button" class="btn sec" id="instalar-app">Instalar o app no celular</button>'}
       <a class="btn sec" href="#/agenda">Agenda</a>
       <a class="btn sec" href="#/contatos">Meus contatos</a>
       <a class="btn sec" href="#/ajuda">Reportar problema ou dar ideia</a>
@@ -2754,6 +2756,7 @@ function telaConta() {
     estado.perfil = null; estado.perfilCarregado = false; estado.sessao = null;
     render(casca('<div class="card pilha"><h2>Conta apagada</h2><p>Seus dados foram removidos. Obrigado por ter usado o Deixa Comigo.</p><a class="btn" href="/">Ir para o site</a></div>', { nav: false }));
   });
+  const bi = $('#instalar-app'); if (bi) bi.addEventListener('click', () => sugerirInstalar({ forcar: true }));
   $('#sair').addEventListener('click', async () => {
     await sb.auth.signOut();
     estado.perfil = null; estado.perfilCarregado = false; estado.sessao = null;
@@ -3137,17 +3140,72 @@ function itemCofreSeguido(c) {
     ${alvo ? `<span class="barra" aria-hidden="true"><span style="width: ${pct}%"></span></span>` : ''}</span></a></li>`;
 }
 
-// Instalar o app na tela inicial
+// Instalar o app na tela inicial: janela própria (Android usa o pedido do Chrome; iPhone mostra o passo a passo)
 let pedidoInstalar = null;
-window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); pedidoInstalar = e; });
-function instalarHTML() {
-  if (instaladoNaTela()) return '';
-  if (ehIphone()) return '<div class="card pilha-p"><h2>Tenha o app no celular</h2><p class="muted">Toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>. Assim você abre o cofrinho com um toque.</p></div>';
-  return `<div class="card pilha-p"><h2>Tenha o app no celular</h2><p class="muted">Abra o cofrinho com um toque, sem procurar o link.</p>${pedidoInstalar ? '<button type="button" class="btn sec" id="instalar">Instalar o Deixa Comigo</button>' : '<p class="muted pequeno">No Chrome, toque nos três pontinhos e em <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong>.</p>'}</div>`;
-}
-function ligarInstalar() {
-  const b = app.querySelector('#instalar');
-  if (b) b.addEventListener('click', async () => { if (!pedidoInstalar) return; pedidoInstalar.prompt(); const r = await pedidoInstalar.userChoice; registrar('app_instalar', { resultado: r && r.outcome }); pedidoInstalar = null; b.remove(); });
+const ADIADO = 'dxcmg_instalar_adiado';
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); pedidoInstalar = e;
+  if (/^#\/(cofre\/|cofres)?$/.test(location.hash || '#/') || location.hash === '') setTimeout(() => sugerirInstalar(), 2500);
+});
+window.addEventListener('appinstalled', () => { pedidoInstalar = null; registrar('app_instalado'); toast('Pronto! O Deixa Comigo está na sua tela inicial.'); });
+function adiado() { try { return Date.now() - Number(localStorage.getItem(ADIADO) || 0) < 14 * 864e5; } catch (e) { return false; } }
+function instalarHTML() { return ''; }
+function ligarInstalar() { setTimeout(() => sugerirInstalar(), 2500); }
+const ICONE_COMPARTILHAR = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A84FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -5px"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 11v9h14v-9"/></svg>';
+function sugerirInstalar({ forcar = false } = {}) {
+  if (instaladoNaTela() || document.querySelector('.inst-fundo')) return;
+  if (!forcar && adiado()) return;
+  const iphone = ehIphone();
+  if (!pedidoInstalar && !iphone && !forcar) return;
+  if (!document.getElementById('inst-estilo')) {
+    const st = document.createElement('style'); st.id = 'inst-estilo';
+    st.textContent = `.inst-fundo{position:fixed;inset:0;background:rgba(22,20,31,.55);z-index:1000;display:flex;align-items:flex-end;justify-content:center;animation:instE .2s ease-out}
+    @media (min-width:600px){.inst-fundo{align-items:center}}
+    .inst{background:#fff;width:100%;max-width:440px;border-radius:28px 28px 0 0;padding:24px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px;font-family:Inter,system-ui,sans-serif;color:#16141F;animation:instS .25s ease-out}
+    @media (min-width:600px){.inst{border-radius:28px}}
+    .inst-cab{display:flex;gap:14px;align-items:center}.inst-cab img{width:64px;height:64px;border-radius:16px;box-shadow:0 6px 16px rgba(22,20,31,.2)}
+    .inst h2{margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:1.35rem;letter-spacing:-.02em}.inst-cab p{margin:2px 0 0;color:#57536A;font-size:.9rem}
+    .inst ul,.inst ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+    .inst li{display:flex;gap:10px;align-items:flex-start;line-height:1.4}.inst li b.n{flex:0 0 26px;height:26px;border-radius:50%;background:#16141F;color:#C8F135;display:flex;align-items:center;justify-content:center;font-size:.85rem}
+    .inst li .ok{flex:0 0 22px;height:22px;border-radius:50%;background:#C8F135;display:flex;align-items:center;justify-content:center}
+    .inst .inst-acoes{display:flex;gap:10px}.inst button{min-height:52px;border-radius:16px;border:0;font:inherit;font-weight:700;font-size:1rem;cursor:pointer;flex:1}
+    .inst .sim{background:#4B2FE0;color:#fff}.inst .nao{background:#F4F2FB;color:#16141F}
+    @keyframes instE{from{opacity:0}}@keyframes instS{from{transform:translateY(40px)}}`;
+    document.head.appendChild(st);
+  }
+  const ok = '<span class="ok"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16141F" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg></span>';
+  const corpo = pedidoInstalar ? `<ul>
+      <li>${ok}<span>Abre com um toque, direto da tela inicial</span></li>
+      <li>${ok}<span>Avisos no celular quando alguém pagar</span></li>
+      <li>${ok}<span>Ocupa quase nada de espaço e não precisa de loja de apps</span></li></ul>
+    <div class="inst-acoes"><button type="button" class="nao">Agora não</button><button type="button" class="sim">Instalar</button></div>`
+    : iphone ? `<ol>
+      <li><b class="n">1</b><span>Toque em ${ICONE_COMPARTILHAR} <strong>Compartilhar</strong>, na barra do Safari</span></li>
+      <li><b class="n">2</b><span>Role e toque em <strong>Adicionar à Tela de Início</strong></span></li>
+      <li><b class="n">3</b><span>Toque em <strong>Adicionar</strong>, no canto de cima</span></li></ol>
+    <p style="margin:0;color:#57536A;font-size:.9rem">No iPhone, os avisos de pagamento só funcionam com o app na tela inicial.</p>
+    <div class="inst-acoes"><button type="button" class="nao">Agora não</button><button type="button" class="sim">Entendi</button></div>`
+    : `<ol>
+      <li><b class="n">1</b><span>No Chrome, toque no menu <strong>⋮</strong> (canto de cima)</span></li>
+      <li><b class="n">2</b><span>Toque em <strong>Instalar app</strong> ou <strong>Adicionar à tela inicial</strong></span></li></ol>
+    <div class="inst-acoes"><button type="button" class="sim">Entendi</button></div>`;
+  const fundo = document.createElement('div');
+  fundo.className = 'inst-fundo';
+  fundo.innerHTML = `<div class="inst" role="dialog" aria-modal="true" aria-labelledby="inst-t">
+    <div class="inst-cab"><img src="/app/icone-192.png" alt=""><div><h2 id="inst-t">Instale o Deixa Comigo</h2><p>Grátis · leva 5 segundos</p></div></div>${corpo}</div>`;
+  document.body.appendChild(fundo);
+  registrar('instalar_sugerido', { tipo: pedidoInstalar ? 'android' : iphone ? 'iphone' : 'manual' });
+  const fechar = (adiar) => { if (adiar) { try { localStorage.setItem(ADIADO, String(Date.now())); } catch (e) { /* ok */ } } fundo.remove(); };
+  const nao = fundo.querySelector('.nao'); if (nao) nao.addEventListener('click', () => fechar(true));
+  fundo.addEventListener('click', (e) => { if (e.target === fundo) fechar(true); });
+  fundo.querySelector('.sim').addEventListener('click', async () => {
+    if (!pedidoInstalar) { fechar(true); return; }
+    const pedido = pedidoInstalar; pedidoInstalar = null; fechar(false);
+    pedido.prompt();
+    const r = await pedido.userChoice;
+    registrar('app_instalar', { resultado: r && r.outcome });
+    if (r && r.outcome !== 'accepted') { try { localStorage.setItem(ADIADO, String(Date.now())); } catch (e) { /* ok */ } }
+  });
 }
 
 async function telaCofre(token) {
@@ -3244,6 +3302,7 @@ app.addEventListener('change', async (e) => {
   registrar('chave_trocada', { tabela });
 });
 ligarAutocompletar(document, () => estado.contatos);
+ligarSeletorContatos(document.body, () => estado.contatos);
 (async function iniciar() {
   const { data } = await sb.auth.getSession();
   estado.sessao = data.session;
