@@ -9,7 +9,7 @@ import { normalizarChave, validarChave } from '../js/pix.js';
 import { MODELOS, vencimentoCiclo, textoRegra, valorDividido, categoriaDe } from '../js/combinados.js';
 import { rotulo, valorDe, textoValor, mensagemCartela, divulgacaoCartela, AVISO_LEGAL } from '../js/cartelas.js';
 import { LOTERIAS, AVISO_BOLAO, conferenciaLiberada, textoConcurso, dezena, lerDezenas, erroJogo, prepararFoto, lerCanhoto, buscarResultado, urlFoto, bolasHTML, conferenciaHTML, divulgacaoBolao, mensagemCota, mensagemJogos, mensagemResultado, textoListaLoterica, jogadoNosJogos, mostrarProximo, daLoteria, valorCurto } from '../js/boloes.js';
-import { datalistHTML, ligarAutocompletar, editarPessoa, lerArquivoContatos, temAgendaDoCelular, contatosDoCelular } from '../js/contatos.js';
+import { datalistHTML, ligarAutocompletar, editarPessoa, lerArquivoContatos, temAgendaDoCelular, contatosDoCelular, googleClientId, prepararGoogle, contatosDoGoogle } from '../js/contatos.js';
 import { montarVitrineDono } from '../js/vitrine.js';
 import { CALCULADORAS, acharCalculadora, montarCalculadora, guardarPreenchimento, lerPreenchimento } from '../js/calculadoras.js';
 
@@ -469,7 +469,7 @@ async function telaPainel() {
       <span class="icone ${COR_ICONE[categoriaDe(k)]}">${ICONE[categoriaDe(k)]}</span>
       <span class="grow"><span class="titulo-item">${esc(k.titulo)}${categoriaDe(k) === 'venda' && ms[0] ? ` · ${esc(primeiroNome(ms[0].nome))}` : ''}</span>
         <span class="muted pequeno" style="display:block">${esc(textoRegra(k))}</span>
-        <span class="muted pequeno" style="display:block">${k.vagas ? `${ms.length} de ${k.vagas} vagas` : categoriaDe(k) === 'venda' ? (toparam ? 'compra confirmada' : 'aguardando a cliente confirmar') : `${toparam} de ${ms.length} confirmaram`}${k.entrada_aberta ? ' · lista aberta' : ''}${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
+        <span class="muted pequeno" style="display:block">${k.vagas ? `${ms.length} de ${k.vagas} vagas` : categoriaDe(k) === 'venda' ? (toparam ? 'compra confirmada' : 'aguardando a cliente confirmar') : `${toparam} de ${ms.length} confirmaram`}${k.entrada_aberta ? ' · lista aberta' : ''}${k.cofre_token ? ' · 🐷 cofrinho' : ''}${k.status === 'pausado' ? ' · pausado' : ''}</span></span></a></li>`;
   };
   const nome = primeiroNome(estado.perfil.nome);
   render(casca(`
@@ -930,8 +930,8 @@ async function telaCombinado(id) {
           : `<p class="muted pequeno">Confirmaram o combinado</p><p class="numero" style="color: var(--lima)">${toparam} de ${ms.length}</p>`}</div>
         <div class="card"><p class="muted pequeno">${k.regra === 'unico' ? 'Prazo' : 'Próxima cobrança'}</p><p class="numero">${k.regra === 'unico' ? dataBR(k.prazo) : prox ? dataBR(prox) : '—'}</p></div>
       </div>
-      ${ehAluno ? alunoHTML() : listaHTML(ms)}
       ${ehAluno || categoriaDe(k) === 'venda' ? '' : cofreDonoHTML(k)}
+      ${ehAluno ? alunoHTML() : listaHTML(ms)}
       ${trocaChaveHTML('combinados', k.id, k.chave_id)}
       <div id="vitrine-dono" data-alvo="combinado" data-id="${k.id}"></div>
       <p class="muted pequeno">${k.regra === 'unico' && k.valor_modo === 'dividir' && k.entrada_aberta ? 'Quando você fechar a lista, o app calcula o valor final e cria a cobrança de cada um.' : 'O app cria a cobrança de cada data sozinho, 2 dias antes do vencimento, e te avisa em "Para fazer hoje". Quem não topou também recebe a cobrança.'}</p>
@@ -1347,7 +1347,7 @@ async function telaCobranca(id) {
         <div class="linha-flex"><span class="icone ${COR_ICONE[tipoDe(c)]}">${ICONE[tipoDe(c)]}</span><span class="tag neutra">${NOMES_TIPO[tipoDe(c)]}</span>${c.status !== 'aberta' ? `<span class="tag pago">${c.status === 'concluida' ? 'Concluída' : 'Cancelada'}</span>` : ''}</div>
         <h1>${esc(c.titulo)}</h1>
         <p class="muted">${resumoDetalhes()}</p>
-        ${c.combinado_id ? `<a class="pequeno" href="#/k/${c.combinado_id}">Ver o combinado</a>` : ''}
+        ${c.combinado_id ? `<a class="pequeno" href="#/k/${c.combinado_id}">Ver o combinado${categoriaDe(c) === 'aluno' || categoriaDe(c) === 'venda' ? '' : ' e o cofrinho do grupo'}</a>` : ''}
       </div>
       <div class="resumo">
         <div class="card escuro"><p class="muted pequeno">Total</p><p class="numero">${brl(c.valor_total)}</p></div>
@@ -2377,6 +2377,7 @@ async function guardarContatos(lista) {
 
 async function telaContatos() {
   render(casca('<p class="carregando">Carregando…</p>', { voltar: '/conta' }));
+  const pg = prepararGoogle(); if (pg) pg.catch(() => {});
   await carregarContatos();
   let busca = '';
   const lista = () => {
@@ -2389,21 +2390,24 @@ async function telaContatos() {
   const desenhar = () => {
     render(casca(`
       <div class="pilha-p"><h1>Meus contatos</h1><p class="muted">Ao digitar um nome nos formulários, o app sugere o contato e já preenche o WhatsApp. Quem você cadastra numa cobrança entra aqui sozinho.</p></div>
-      <div class="acoes">
-        <button type="button" class="btn peq" data-acao="ct-novo">Novo contato</button>
-        ${temAgendaDoCelular() ? '<button type="button" class="btn sec peq" data-acao="ct-celular">Importar da agenda do celular</button>' : ''}
-        <label class="btn sec peq" for="ct-arquivo" role="button" tabindex="0">Importar do Google Contatos</label>
+      <div class="acoes"><button type="button" class="btn peq" data-acao="ct-novo">Novo contato</button></div>
+      <section class="card pilha-p" aria-labelledby="t-importar">
+        <h2 id="t-importar">Trazer contatos</h2>
+        ${googleClientId() ? '<button type="button" class="btn" data-acao="ct-google">Importar da minha conta Google</button>' : ''}
+        ${temAgendaDoCelular() ? `<button type="button" class="btn ${googleClientId() ? 'sec' : ''}" data-acao="ct-celular">Escolher da agenda do celular</button>
+          <p class="muted pequeno">No Android, a agenda do celular já inclui os contatos salvos na sua conta Google: escolha por aqui que eles aparecem.</p>` : ''}
+        <label class="btn sec" for="ct-arquivo" role="button" tabindex="0">Importar arquivo (CSV ou vCard)</label>
         <input type="file" id="ct-arquivo" accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard" hidden>
-      </div>
-      <details class="card"><summary style="cursor:pointer; font-weight: 700; min-height: 44px; display:flex; align-items:center">Como trazer os contatos do Google</summary>
-        <ol class="muted" style="margin: 8px 0 0; padding-left: 20px">
-          <li>No computador ou no navegador do celular, abra <strong>contacts.google.com</strong>.</li>
-          <li>Toque em <strong>Exportar</strong>, escolha <strong>Google CSV</strong> (ou vCard) e confirme.</li>
-          <li>Volte aqui, toque em <strong>Importar do Google Contatos</strong> e escolha o arquivo baixado.</li>
-        </ol>
-        <p class="muted pequeno">Só entram contatos com celular com DDD. Os contatos ficam só na sua conta.</p>
-        ${temAgendaDoCelular() ? '' : '<p class="muted pequeno">No Android (Chrome), aparece também o botão para escolher direto da agenda do celular.</p>'}
-      </details>
+        <details><summary style="cursor:pointer; font-weight: 600; min-height: 44px; display:flex; align-items:center">Como gerar o arquivo no Google Contatos</summary>
+          <ol class="muted" style="margin: 8px 0 0; padding-left: 20px">
+            <li>Abra <a href="https://contacts.google.com/" target="_blank" rel="noopener">contacts.google.com</a> (no celular, use "Versão para computador" no menu do navegador).</li>
+            <li>No menu da esquerda, toque em <strong>Exportar</strong>, escolha <strong>Google CSV</strong> e confirme. O arquivo vai para a pasta Downloads.</li>
+            <li>Volte aqui, toque em <strong>Importar arquivo</strong> e escolha esse arquivo.</li>
+          </ol>
+          <p class="muted pequeno">No iPhone: em Ajustes → Contatos → Contas, confira se a conta Google está ligada; depois use o arquivo, como acima.</p>
+        </details>
+        <p class="muted pequeno">Só entram contatos com celular com DDD. Eles ficam só na sua conta.</p>
+      </section>
       <div class="campo"><label for="ct-busca">Buscar</label><input id="ct-busca" type="search" placeholder="Nome ou número" value="${esc(busca)}" autocomplete="off"></div>
       <p class="muted pequeno">${estado.contatos.length} ${estado.contatos.length === 1 ? 'contato' : 'contatos'}</p>
       <div id="ct-lista">${lista()}</div>`, { voltar: '/conta' }));
@@ -2437,6 +2441,19 @@ async function telaContatos() {
       const { error } = await sb.from('contatos').delete().eq('id', c.id);
       if (error) { toast(traduzErro(error), 'erro'); return; }
       await carregarContatos(); desenhar();
+    } else if (b.dataset.acao === 'ct-google') {
+      b.disabled = true;
+      try {
+        const lidos = await contatosDoGoogle();
+        if (!lidos.length) { toast('Não achei contatos com celular na sua conta Google.', 'erro'); return; }
+        const n = await guardarContatos(lidos);
+        registrar('contatos_importados', { origem: 'google', qtd: n });
+        toast(n ? `${n} ${n === 1 ? 'contato importado' : 'contatos importados'} do Google.` : 'Esses contatos já estavam aqui.');
+        await carregarContatos(); desenhar();
+      } catch (err) {
+        const m = String(err.message || '');
+        toast(/negado|fechado|access_denied|popup/.test(m) ? 'Importação cancelada.' : 'Não consegui ler os contatos do Google agora.', 'erro');
+      } finally { b.disabled = false; }
     } else if (b.dataset.acao === 'ct-celular') {
       try {
         const lidos = await contatosDoCelular();
@@ -3080,7 +3097,7 @@ function mensagemCofre(titulo, link, plano) {
 }
 function cofreFormHTML() {
   return `<div class="card pilha-p">
-    <span style="font-weight: 700">Cofrinho transparente</span>
+    <span style="font-weight: 700">🐷 Cofrinho transparente</span>
     <label class="check"><input type="checkbox" id="cofre" checked> Criar um link para todo mundo acompanhar quanto já foi arrecadado, quanto falta e a meta</label>
     <label class="check" style="margin-left: 32px"><input type="checkbox" id="cofre-nomes"> Mostrar também o nome de cada um e quanto já pagou</label>
     <span class="ajuda">Para ver os valores, a pessoa cria uma conta grátis no Deixa Comigo. Dá para mudar isso depois.</span>
@@ -3088,23 +3105,27 @@ function cofreFormHTML() {
 }
 function cofreDonoHTML(k) {
   if (!k.cofre_token) {
-    return k.status === 'encerrado' ? '' : `<div class="card pilha-p">
-      <h2>Cofrinho transparente</h2>
+    return k.status === 'encerrado' ? '' : `<div class="card pilha-p" style="border: 2px solid var(--ink)">
+      <h2>🐷 Cofrinho transparente</h2>
       <p class="muted">Crie um link para os participantes acompanharem quanto já entrou e quanto falta. Assim ninguém precisa perguntar.</p>
       <label class="check"><input type="checkbox" id="cofre-nomes-k"> Mostrar o nome de cada um e quanto já pagou</label>
       <button type="button" class="btn sec peq" data-acao="cofre-ligar" style="align-self: flex-start">Criar link do cofrinho</button>
     </div>`;
   }
-  return `<div class="card pilha-p">
-    <div class="linha-flex entre"><h2>Cofrinho transparente</h2><span class="tag pago">Link ativo</span></div>
+  return `<div class="card escuro pilha-p">
+    <div class="linha-flex entre"><h2>🐷 Cofrinho transparente</h2><span class="tag" style="background: var(--lima); color: var(--ink)">Link ativo</span></div>
     <p class="muted pequeno">Quem tem o link e entra com uma conta grátis vê o total arrecadado, o que falta e a meta${k.cofre_nomes ? ', e também quem pagou quanto' : ''}.</p>
     <div class="acoes">
-      <button type="button" class="btn peq" data-acao="cofre-whats">Mandar no grupo</button>
+      <button type="button" class="btn lima peq" data-acao="cofre-whats">Compartilhar no WhatsApp</button>
       <button type="button" class="btn sec peq" data-acao="cofre-copiar">Copiar link</button>
       <a class="btn sec peq" href="#/cofre/${k.cofre_token}">Ver como eles veem</a>
     </div>
-    <label class="check"><input type="checkbox" data-acao="cofre-nomes" ${k.cofre_nomes ? 'checked' : ''}> Mostrar o nome de cada um e quanto já pagou</label>
-    <button type="button" class="btn texto peq" data-acao="cofre-desligar" style="align-self: flex-start; padding-left: 0">Desligar o link</button>
+    <div class="pilha-p" style="gap: 6px; margin-top: 4px"><span style="font-weight: 600">O que aparece no cofrinho</span>
+      <div class="tons" role="group" aria-label="O que aparece no cofrinho">
+        <button type="button" class="tom" data-acao="${k.cofre_nomes ? 'cofre-nomes' : ''}" aria-pressed="${!k.cofre_nomes}">Só os totais</button>
+        <button type="button" class="tom" data-acao="${k.cofre_nomes ? '' : 'cofre-nomes'}" aria-pressed="${!!k.cofre_nomes}">Totais e quem pagou</button>
+      </div></div>
+    <button type="button" class="btn texto peq" data-acao="cofre-desligar" style="align-self: flex-start; padding-left: 0; color: #C9C5D6">Desligar o link</button>
   </div>`;
 }
 function itemCofreSeguido(c) {

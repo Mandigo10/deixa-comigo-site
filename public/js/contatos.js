@@ -133,3 +133,51 @@ export function editarPessoa({ titulo = 'Editar', nome = '', telefone = '', exig
     d.querySelector('#ed-nome').focus();
   });
 }
+
+// ---------- importação direta da conta Google (People API) ----------
+// Só funciona quando o dono do app configura GOOGLE_CLIENT_ID em /config.js.
+export const googleClientId = () => (window.DXCMG_CONFIG || {}).GOOGLE_CLIENT_ID || '';
+let gsi = null;
+export function prepararGoogle() {
+  if (!googleClientId() || gsi) return gsi;
+  gsi = new Promise((ok, erro) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = () => ok(window.google); s.onerror = () => { gsi = null; erro(new Error('google_script')); };
+    document.head.appendChild(s);
+  });
+  return gsi;
+}
+export async function contatosDoGoogle() {
+  const g = await prepararGoogle();
+  const token = await new Promise((ok, erro) => {
+    const cliente = g.accounts.oauth2.initTokenClient({
+      client_id: googleClientId(),
+      scope: 'https://www.googleapis.com/auth/contacts.readonly',
+      callback: (r) => (r && r.access_token ? ok(r.access_token) : erro(new Error((r && r.error) || 'google_negado'))),
+      error_callback: (e) => erro(new Error((e && e.type) || 'google_fechado'))
+    });
+    cliente.requestAccessToken();
+  });
+  const saida = []; let pagina = '';
+  try {
+    do {
+      const u = new URL('https://people.googleapis.com/v1/people/me/connections');
+      u.searchParams.set('personFields', 'names,phoneNumbers');
+      u.searchParams.set('pageSize', '1000');
+      if (pagina) u.searchParams.set('pageToken', pagina);
+      const r = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`google_${r.status}`);
+      const j = await r.json();
+      (j.connections || []).forEach((p) => {
+        const nome = (((p.names || [])[0] || {}).displayName || '').trim();
+        const tel = melhorTelefone((p.phoneNumbers || []).map((x) => x.canonicalForm || x.value));
+        if (nome && tel) saida.push({ nome: nome.slice(0, 80), telefone: tel });
+      });
+      pagina = j.nextPageToken || '';
+    } while (pagina);
+  } finally {
+    try { g.accounts.oauth2.revoke(token, () => {}); } catch (e) { /* sem problema */ }
+  }
+  return saida;
+}
