@@ -88,11 +88,11 @@ async function iniciar() {
       <span class="tag neutra" style="align-self: flex-start">${esc(MODELOS[categoriaDe(k)] ? MODELOS[categoriaDe(k)].nome : 'Combinado')}</span>
     </div>
     <div class="card escuro pilha-p">
-      <p class="muted pequeno">Sua parte${aguardandoFechar || (k.valor_modo === 'dividir' && k.aberto) ? ' (por enquanto)' : ''}</p>
+      <p class="muted pequeno">${categoriaDe(k) === 'aluno' ? 'Sua mensalidade' : 'Sua parte'}${aguardandoFechar || (k.valor_modo === 'dividir' && k.aberto) ? ' (por enquanto)' : ''}</p>
       <p class="numero" style="font-size: 2.2rem; color: var(--lima)">${brl(k.valor)}</p>
       <p>${esc(textoRegra(k, k.valor))}</p>
       ${k.valor_modo === 'dividir' && k.aberto ? '<p class="muted pequeno">O custo é dividido entre todo mundo: se mais gente entrar, sua parte diminui.</p>' : ''}
-      ${k.pagamento_token ? `<a class="btn lima bloco" href="/p/?t=${esc(k.pagamento_token)}" style="margin-top: 8px">Pagar minha parte</a>` : ''}
+      ${k.pagamento_token ? `<a class="btn lima bloco" href="/p/?t=${esc(k.pagamento_token)}" style="margin-top: 8px">${categoriaDe(k) === 'aluno' ? 'Pagar a mensalidade' : 'Pagar minha parte'}</a>` : ''}
       ${aguardandoFechar ? `<p class="muted pequeno" style="margin-top: 8px">Quando ${esc(org)} fechar a lista, o valor final e o Pix aparecem aqui.</p>` : ''}
     </div>
     ${lista ? ocupacaoHTML(k) : ''}

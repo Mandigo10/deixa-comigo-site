@@ -1,6 +1,6 @@
 # Deixa Comigo (DX CMG) — contexto do projeto
 
-Leia este arquivo inteiro antes de mexer em qualquer coisa. Ele resume o que foi construído e decidido até 20/11/2026.
+Leia este arquivo inteiro antes de mexer em qualquer coisa. Ele resume o que foi construído e decidido até 21/11/2026.
 
 ## Quem é o dono e como trabalhar
 - Dono: Jader (fala português, mora no Brasil). É um negócio paralelo dele: um app que tira o constrangimento de cobrar as pessoas.
@@ -11,11 +11,16 @@ Leia este arquivo inteiro antes de mexer em qualquer coisa. Ele resume o que foi
 ## Ideia do produto
 "Combinou antes, deixa que o app cobra." A pessoa combina regras antes (carona, vaquinha, viagem parcelada, mensalidade, venda parcelada, cartela, bolão) e o app manda as cobranças pelo WhatsApp com Pix na data. O app **não recebe nem guarda dinheiro**: o Pix vai direto para quem organiza (BR Code gerado no navegador).
 - Planos: Grátis (assinatura "enviado por dx cmg" nas mensagens, limites), Plus R$ 9,90 e Autônomo R$ 24,90 "em breve" (sem cobrança implementada; coluna `perfis.plano`, protegida por trigger `proteger_plano`).
-- **Reposicionamento (pedido do dono em 21/11/2026, ainda NÃO feito no site):**
-  - Público profissional deixa de ser "pedreiro/obras" e passa a ser quem cobra mensalidade de alunos/clientes: **professor (aulas particulares, idiomas, música), personal trainer, instrutor (autoescola, natação, dança, lutas), terapeutas, nutricionistas, coaches** etc. Hoje "pedreiro" aparece em `public/calculadoras/index.html` (meta description/og) e `public/js/calculadoras.js` (calculadora `id: 'pedreiro'`); a página `public/autonomos/` e a landing também precisam ser revisadas para o novo público.
-  - Planos em duas linhas: **Pessoa física** (carona, vaquinha, viagem, bolão, cartela; Grátis + Plus) e **Profissional** (alunos/clientes recorrentes), com cobrança **mensal, semestral e anual com desconto** (sugestão inicial: semestral ~15% off, anual ~25% off; preços finais a decidir com o dono).
-  - Sugestões a discutir com o dono: recursos do Profissional = cadastro de alunos/clientes, mensalidade recorrente automática, controle de presença/aulas avulsas e pacotes, reajuste anual, recibo, relatório mensal de recebidos (ajuda no carnê-leão/MEI), página pública do profissional com a vitrine, confirmação automática do Pix (Mercado Pago) e alertas. Teste grátis de 14–30 dias no Profissional. Calculadoras novas: "quanto cobrar por aula" e "valor do pacote de aulas".
-  - Ordem proposta: (1) textos do site/landing/autonomos/calculadoras; (2) tabela de planos com mensal/semestral/anual; (3) recursos do Profissional; (4) cobrança da assinatura (precisa decidir o meio: Mercado Pago/Asaas assinatura).
+- **Reposicionamento para profissionais (feito em 21/11/2026):** público profissional = quem cobra mensalidade de alunos/clientes (professor, personal, instrutor, terapeuta, nutricionista, coach). "Pedreiro" saiu do site.
+  - Planos em duas linhas: **Pessoa física** (Grátis, Plus R$ 9,90/mês) e **Profissional** (no banco continua `perfis.plano = 'autonomo'` e `origem='autonomo'` em `lista_espera`/`cliques_plano`, por causa das constraints). Profissional: mensal R$ 24,90, semestral R$ 126,90 (−15%), anual R$ 224,10 (−25%). **Preços provisórios, a confirmar com o dono.** Fonte única: `public/js/planos.js` (`PLANOS`, `PERIODOS_PRO`, `ligarPeriodos`, `nomePlano`, `LIBERADO_ATE`). Cobrança da assinatura ainda não existe (precisa decidir o meio: Mercado Pago/Asaas).
+  - Site: `public/profissionais/` (página nova; `/autonomos/` só redireciona), seção de planos da landing com seletor de período, card "Alunos e clientes" na landing. Simulador de reajuste em `public/app.js` lê `data-base/data-qtd/data-aluno/data-item` da seção `#reajuste`.
+  - Calculadoras: `aula` (preço da aula/sessão) e `pacote` (mensalidade/pacote, usa 4,33 semanas/mês) no lugar de `pedreiro`. O botão "Combinar" usa `combinar.rota` (`/aluno/novo`).
+  - App, aluno = combinado `modelo 'mensalidade'`, `regra 'recorrente'`, `frequencia 'mensal'`, `detalhes.categoria = 'aluno'`, `detalhes.servico`, 1 membro. Telas: `#/alunos` (lista, atraso, total/mês), `#/aluno/novo` (com "salvar e cadastrar outro"), `#/alunos/reajuste`, `#/recibo/<participante_id>` (valor por extenso `valorPorExtenso` em util.js, imprimir/WhatsApp), `#/relatorio[/AAAA-MM]` (recebidos do mês, CSV com ; e BOM). Na tela do combinado do aluno: cartão "Mensalidade" (mudar valor, aviso/cancelar reajuste). Painel mostra card "Alunos e clientes" e tira os alunos da lista de combinados.
+  - **Reajuste agendado:** `combinados.detalhes.reajuste = {valor, a_partir, pct, criado_em, avisado_em}`. Função `aplicar_reajustes()` aplica quando `a_partir - 2 <= hoje` e guarda `ultimo_reajuste`; `gerar_cobrancas_v3()` = aplicar_reajustes + v2. **O app agora chama v3 em todo lugar.** Mensagem: `avisoReajuste` em mensagens.js.
+  - Reajuste, recibo e relatório ficam liberados para todos até 31/01/2027 (`conferenciaLiberada`); depois, só plano pago (`bloqueioPro`). Cadastrar alunos continua grátis.
+  - Dados de teste: combinado "TESTE Aulas de inglês" (aluno "Ana TESTE") na conta de teste, com reajuste agendado para 22/01/2027.
+  - **Não testado logado** (Claude não tem a senha da conta de teste): telas do app `#/alunos`, `#/aluno/novo`, reajuste, recibo e relatório. Testado: banco (reajuste aplicado e cobrança com valor novo), páginas públicas, calculadoras, `/topo/` do aluno.
+  - Próximos passos sugeridos: pacotes de aulas com controle de presença, aula avulsa/reposição, regra de faltas, página pública do profissional (vitrine), teste grátis quando houver cobrança da assinatura.
 - Legal: não fazer rifa/sorteio com prêmio (precisa autorização do Ministério da Fazenda) nem consórcio (Banco Central). Cartela = só números, sem sorteio. Bolão = dividir apostas oficiais da CAIXA, sem taxa, com aviso legal (`AVISO_BOLAO`).
 
 ## Infra

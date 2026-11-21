@@ -178,7 +178,7 @@ function telaEntrar() {
   render(casca(`
     <div class="pilha" style="padding-top: 16px">
       <h1>Cobrar amigo é chato.<br><span style="color: var(--roxo)">Deixa comigo.</span></h1>
-      <p class="muted">Entre para cobrar carona, empréstimo e racha sem climão.</p>
+      <p class="muted">Entre para cobrar carona, vaquinha, alunos e clientes sem climão.</p>
     </div>
     <form id="f" class="card pilha" novalidate>
       <div class="campo"><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" required></div>
